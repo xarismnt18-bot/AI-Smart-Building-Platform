@@ -1,0 +1,1 @@
+print("Smart Building AI Platform started successfully.")
