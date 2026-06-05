@@ -10,6 +10,14 @@ This project was developed as a personal portfolio project demonstrating the int
 
 ---
 
+<img width="1892" height="949" alt="image" src="https://github.com/user-attachments/assets/ba5f751c-a7d8-43e0-8e8a-54d527017231" />
+
+
+
+
+
+
+
 ## Key Features
 
 ### Real-Time IoT Monitoring
