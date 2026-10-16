@@ -162,7 +162,7 @@ export default function Settings({ temp, humidity, health, lastUpdate, status, o
             { name: "localStorage", desc: "API URL, refresh, room name (this browser)", color: "#a855f7" },
           ].map((f) => (
             <div key={f.name} className="file-card">
-              <span style={{ color: f.color, fontFamily: "Orbitron", fontSize: 11, fontWeight: 700 }}>{f.name}</span>
+              <span style={{ color: f.color, fontFamily: "Oxanium", fontSize: 11, fontWeight: 700 }}>{f.name}</span>
               <small>{f.desc}</small>
             </div>
           ))}

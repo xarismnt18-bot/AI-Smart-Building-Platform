@@ -39,7 +39,7 @@ function Histogram({ data, field, color, thresholdHigh, thresholdLow, label, uni
           <line x1={(lowIdx / bins) * 580 + 10 + (580 / bins) / 2} y1="10" x2={(lowIdx / bins) * 580 + 10 + (580 / bins) / 2} y2="180" stroke="#22c55e" strokeDasharray="6 4" strokeWidth="2" />
         )}
       </svg>
-      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "Share Tech Mono", fontSize: 11, color: "#94a3b8", padding: "0 10px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "Manrope", fontSize: 11, color: "#94a3b8", padding: "0 10px" }}>
         <span>{min.toFixed(1)}{unit}</span>
         <span>Avg: {(values.reduce((a, b) => a + b, 0) / values.length).toFixed(1)}{unit}</span>
         <span>{max.toFixed(1)}{unit}</span>

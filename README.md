@@ -16,7 +16,7 @@ ESP8266 + DHT11 ──MQTT──> Mosquitto Broker ──> FastAPI Backend ─�
 | Sensors | ESP8266 + DHT11 (temperature, humidity) |
 | Messaging | MQTT via Mosquitto broker |
 | Backend | Python, FastAPI, paho-mqtt 2.x |
-| Frontend | React, Vite, Three.js (3D), Lucide icons |
+| Frontend | React, Vite, Three.js via react-three-fiber (3D, bloom), Lucide icons |
 | Analytics | numpy (weighted regression), scikit-learn (demo models) |
 
 ## Project Structure
@@ -105,8 +105,7 @@ Malformed or out-of-range packets are ignored and counted (`invalid_packets`); t
 
 | Page | Description |
 |------|------------|
-| **Dashboard** | Live metrics, 3D twin, backend alerts, packet monitor |
-| **3D Twin** | Interactive Three.js room visualization |
+| **Dashboard** | Full-screen live 3D twin of the home with a HUD: readings, trend, alerts, packet stream. Views: temperature, humidity, X-ray. Click a room to fly to it. The live room turns red and pulses on any alert, and grey when there is no data |
 | **Floorplan** | 2D room status overview |
 | **Analytics** | Temperature and humidity trend charts |
 | **AI Brain** | Rule-based comfort analysis and deviation check |

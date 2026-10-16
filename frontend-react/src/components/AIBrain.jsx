@@ -12,8 +12,8 @@ function GaugeSVG({ value, label, color, size = 200 }) {
         <path d="M20 110 A70 70 0 0 1 180 110" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="14" strokeLinecap="round" />
         <path d="M20 110 A70 70 0 0 1 180 110" fill="none" stroke={color} strokeWidth="14" strokeLinecap="round"
           strokeDasharray={`${fill} ${circumference}`} style={{ transition: "stroke-dasharray 0.8s ease" }} />
-        <text x="100" y="95" textAnchor="middle" fill={color} fontFamily="Orbitron" fontSize="30" fontWeight="900">{value}</text>
-        <text x="100" y="118" textAnchor="middle" fill="#94a3b8" fontFamily="Share Tech Mono" fontSize="10">{label}</text>
+        <text x="100" y="95" textAnchor="middle" fill={color} fontFamily="Oxanium" fontSize="30" fontWeight="900">{value}</text>
+        <text x="100" y="118" textAnchor="middle" fill="#94a3b8" fontFamily="Manrope" fontSize="10">{label}</text>
       </svg>
     </div>
   );
@@ -57,7 +57,7 @@ function RadarSVG({ values, labels, size = 300 }) {
           const [x, y] = getPoint(i, 115);
           return (
             <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle"
-              fill="#94a3b8" fontFamily="Share Tech Mono" fontSize="10">{label}</text>
+              fill="#94a3b8" fontFamily="Manrope" fontSize="10">{label}</text>
           );
         })}
       </svg>

@@ -19,7 +19,7 @@ function RiskBadge({ risk }) {
     <span style={{
       display: "inline-block", padding: "4px 12px", borderRadius: 20,
       background: s.bg, border: `1px solid ${s.border}`, color: s.color,
-      fontFamily: "Orbitron", fontSize: 10, fontWeight: 700, letterSpacing: 1,
+      fontFamily: "Oxanium", fontSize: 10, fontWeight: 700, letterSpacing: 1,
     }}>
       {(risk || "unknown").toUpperCase()}
     </span>
@@ -119,19 +119,19 @@ export default function Predictions() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <div>
             <span className="kpi-label">FORECAST WINDOW</span>
-            <span style={{ fontFamily: "Orbitron", fontSize: 16, color: "#22d3ee" }}>{preds?.minutes_ahead || 10} minutes</span>
+            <span style={{ fontFamily: "Oxanium", fontSize: 16, color: "#22d3ee" }}>{preds?.minutes_ahead || 10} minutes</span>
           </div>
           <div>
             <span className="kpi-label">DATA POINTS</span>
-            <span style={{ fontFamily: "Orbitron", fontSize: 16, color: "#a855f7" }}>{preds?.data_points || 0}</span>
+            <span style={{ fontFamily: "Oxanium", fontSize: 16, color: "#a855f7" }}>{preds?.data_points || 0}</span>
           </div>
           <div>
             <span className="kpi-label">MODEL</span>
-            <span style={{ fontFamily: "Orbitron", fontSize: 16, color: "#22c55e" }}>Weighted Linear Regression</span>
+            <span style={{ fontFamily: "Oxanium", fontSize: 16, color: "#22c55e" }}>Weighted Linear Regression</span>
           </div>
           <div>
             <span className="kpi-label">STATUS</span>
-            <span style={{ fontFamily: "Orbitron", fontSize: 16, color: preds ? "#22c55e" : "#ef4444" }}>{preds ? "ACTIVE" : "API OFFLINE"}</span>
+            <span style={{ fontFamily: "Oxanium", fontSize: 16, color: preds ? "#22c55e" : "#ef4444" }}>{preds ? "ACTIVE" : "API OFFLINE"}</span>
           </div>
         </div>
       </div>
