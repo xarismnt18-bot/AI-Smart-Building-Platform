@@ -1,214 +1,156 @@
-import json
-from datetime import datetime
-from threading import Lock
+import logging
+import os
+import sys
+from contextlib import asynccontextmanager
 
-import paho.mqtt.client as mqtt
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-
-# =========================
-# MQTT SETTINGS
-# =========================
-MQTT_BROKER = "192.168.1.143"
-MQTT_PORT = 1883
-MQTT_TOPIC = "smartroom/dht11"
-
-
-# =========================
-# GLOBAL MEMORY
-# =========================
-data_lock = Lock()
-
-latest_data = {
-    "room": "My Room",
-    "temperature": None,
-    "humidity": None,
-    "connected": False,
-    "last_update": None,
-}
-
-history = []
-
-
-# =========================
-# FASTAPI APP
-# =========================
-app = FastAPI(
-    title="Smart Building AI OS API",
-    version="1.0.0"
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from config import (  # noqa: E402
+    CORS_ORIGINS, HISTORY_MAX_SIZE, SETTINGS_FILE,
+    PREDICTION_MINUTES_AHEAD, PREDICTION_LOOKBACK_MIN, SENSOR_STALE_SEC,
 )
+from ai.mqtt_client import SharedMQTTClient  # noqa: E402
+from ai.engines import (  # noqa: E402
+    PredictionEngine, RecommendationEngine,
+    dew_point, health_score, health_status, mold_risk,
+)
+from backend.settings_store import SettingsStore  # noqa: E402
+
+logger = logging.getLogger(__name__)
+
+sensor = SharedMQTTClient(max_history=HISTORY_MAX_SIZE)
+settings = SettingsStore(SETTINGS_FILE)
+predictor = PredictionEngine(PREDICTION_MINUTES_AHEAD, PREDICTION_LOOKBACK_MIN)
+recommender = RecommendationEngine()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    sensor.start()
+    yield
+    sensor.stop()
+
+
+app = FastAPI(title="Smart Building AI OS API", version="6.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False,  # no cookies/auth; required to be False with "*"
+    allow_methods=["GET", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
 
 # =========================
-# MQTT CALLBACKS
-# =========================
-def on_connect(client, userdata, flags, rc):
-    with data_lock:
-        latest_data["connected"] = rc == 0
-
-    if rc == 0:
-        client.subscribe(MQTT_TOPIC)
-        print(f"Connected to MQTT broker and subscribed to {MQTT_TOPIC}")
-    else:
-        print(f"MQTT connection failed with code {rc}")
-
-
-def on_message(client, userdata, msg):
-    global latest_data, history
-
-    try:
-        payload = json.loads(msg.payload.decode())
-
-        temperature = float(payload["temperature"])
-        humidity = float(payload["humidity"])
-        room = payload.get("room", "My Room")
-
-        packet = {
-            "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "room": room,
-            "temperature": round(temperature, 1),
-            "humidity": round(humidity, 1),
-            "connected": True,
-            "last_update": datetime.now().strftime("%H:%M:%S"),
-        }
-
-        with data_lock:
-            latest_data.update(packet)
-            history.append(packet)
-
-            if len(history) > 500:
-                history = history[-500:]
-
-        print("MQTT packet received:", packet)
-
-    except Exception as e:
-        print("MQTT payload error:", e)
-        with data_lock:
-            latest_data["connected"] = False
-
-
-# =========================
-# MQTT STARTUP
-# =========================
-@app.on_event("startup")
-def start_mqtt():
-    try:
-        client = mqtt.Client()
-        client.on_connect = on_connect
-        client.on_message = on_message
-
-        client.connect(MQTT_BROKER, MQTT_PORT, 60)
-        client.loop_start()
-
-        app.state.mqtt_client = client
-        print("MQTT client started")
-
-    except Exception as e:
-        print(f"MQTT connection failed: {e}")
-        print("API will continue running without MQTT data")
-
-        with data_lock:
-            latest_data["connected"] = False
-
-
-# =========================
-# API ROUTES
+# STATUS / DATA
 # =========================
 @app.get("/")
 def root():
+    latest = sensor.latest
     return {
         "message": "Smart Building AI OS API is running",
-        "mqtt_topic": MQTT_TOPIC,
-        "broker": MQTT_BROKER,
+        "version": app.version,
+        "mqtt_topic": sensor.topic,
+        "broker": sensor.broker,
+        "broker_connected": latest["broker_connected"],
+        "sensor_online": latest["sensor_online"],
+        "sensor_stale_after_sec": SENSOR_STALE_SEC,
     }
 
 
 @app.get("/latest")
 def get_latest():
-    with data_lock:
-        return latest_data
+    return sensor.latest
 
 
 @app.get("/history")
-def get_history():
-    with data_lock:
-        return history
+def get_history(limit: int | None = Query(None, ge=1, le=HISTORY_MAX_SIZE)):
+    return sensor.history(limit)
 
 
 @app.get("/health")
 def get_health():
-    with data_lock:
-        temp = latest_data["temperature"]
-        hum = latest_data["humidity"]
+    latest = sensor.latest
+    temp, hum = latest["temperature"], latest["humidity"]
 
     if temp is None or hum is None:
         return {
             "status": "WAITING_FOR_DATA",
             "health_score": None,
-            "message": "No MQTT data received yet"
+            "message": "No MQTT data received yet",
         }
 
-    score = 100
-
-    if temp > 27:
-        score -= min((temp - 27) * 8, 35)
-
-    if hum > 70:
-        score -= min((hum - 70) * 4, 35)
-
-    if hum < 40:
-        score -= min((40 - hum) * 2, 20)
-
-    score = max(int(score), 20)
-
-    if score >= 80:
-        status = "OPTIMAL"
-    elif score >= 60:
-        status = "ATTENTION_REQUIRED"
-    else:
-        status = "CRITICAL"
-
+    score = health_score(temp, hum, settings.thresholds)
     return {
-        "status": status,
+        "status": health_status(score),
         "health_score": score,
         "temperature": temp,
         "humidity": hum,
+        "dew_point": dew_point(temp, hum),
+        "mold_risk": mold_risk(temp, hum),
+        "sensor_online": latest["sensor_online"],
     }
 
 
 @app.get("/alerts")
 def get_alerts():
+    latest = sensor.latest
+    t = settings.thresholds
+    temp, hum = latest["temperature"], latest["humidity"]
     alerts = []
 
-    with data_lock:
-        temp = latest_data["temperature"]
-        hum = latest_data["humidity"]
-        connected = latest_data["connected"]
+    if not latest["broker_connected"]:
+        alerts.append("MQTT broker is unreachable.")
+    elif not latest["sensor_online"]:
+        alerts.append("Sensor is offline: no recent packets.")
 
-    if not connected:
-        alerts.append("Device is offline or MQTT connection is unstable.")
-
-    if temp is not None and temp > 27:
+    if temp is not None and temp > t.TEMP_HIGH:
         alerts.append("Temperature is above comfort threshold.")
-
-    if hum is not None and hum > 70:
+    if temp is not None and temp < t.TEMP_LOW:
+        alerts.append("Temperature is below comfort threshold.")
+    if hum is not None and hum > t.HUMIDITY_HIGH:
         alerts.append("Humidity is above comfort threshold. Mold risk may increase.")
-
-    if hum is not None and hum < 40:
+    if hum is not None and hum < t.HUMIDITY_LOW:
         alerts.append("Humidity is low. Dry-air conditions detected.")
 
-    if not alerts:
-        alerts.append("No active alerts.")
+    return {"alerts": alerts or ["No active alerts."]}
 
-    return {
-        "alerts": alerts
-    }
+
+# =========================
+# AI
+# =========================
+@app.get("/predictions")
+def get_predictions():
+    return predictor.predict_all(sensor.history(), settings.thresholds)
+
+
+@app.get("/recommendations")
+def get_recommendations():
+    t = settings.thresholds
+    predictions = predictor.predict_all(sensor.history(), t)
+    return {"recommendations": recommender.generate(sensor.latest, predictions, t)}
+
+
+# =========================
+# CONFIG (single source of truth for thresholds)
+# =========================
+@app.get("/config")
+def get_config():
+    return {"thresholds": settings.thresholds.as_dict(), "mqtt_topic": sensor.topic}
+
+
+@app.put("/config")
+def put_config(changes: dict[str, float]):
+    try:
+        updated = settings.update(changes)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return {"thresholds": updated.as_dict(), "mqtt_topic": sensor.topic}
+
+
+@app.delete("/config")
+def reset_config():
+    return {"thresholds": settings.reset().as_dict(), "mqtt_topic": sensor.topic}

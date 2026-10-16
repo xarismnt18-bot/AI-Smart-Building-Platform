@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Text, Line } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
-import { useEffect, useMemo, useState } from "react";
+import { Component, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Brain,
   LayoutDashboard,
@@ -13,30 +13,68 @@ import {
   Cloud,
   AlertTriangle,
   FileText,
-  Settings,
+  Settings as SettingsIcon,
   Layers,
   Thermometer,
   Droplets,
   Wind,
+  Sparkles,
 } from "lucide-react";
 import "./App.css";
+import { CLIENT, SERVER, THRESHOLDS, apiGet, formatTime, loadServerConfig } from "./config";
+import Energy from "./components/Energy";
+import Reports from "./components/Reports";
+import Settings from "./components/Settings";
+import AIBrain from "./components/AIBrain";
+import Predictions from "./components/Predictions";
 
-const API_URL = "http://127.0.0.1:8000";
+const HISTORY_REFRESH_FACTOR = 5; // history changes slowly; poll it 5x less often
+const NO_ALERTS = "No active alerts.";
+
+// drei <Text> fetches glyph data from a CDN. Without internet that fetch fails
+// and used to blank the whole 3D canvas; now only the label is skipped.
+class OptionalBoundary extends Component {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error) {
+    console.warn("3D label unavailable:", error.message);
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 function Room({ position, size, color, label, temp, humidity, active, viewMode, layers }) {
+  const [w, h, d] = size;
+  // One geometry per room size, disposed on unmount (was re-created every poll).
+  const edges = useMemo(() => {
+    const box = new THREE.BoxGeometry(w, h, d);
+    const geometry = new THREE.EdgesGeometry(box);
+    box.dispose();
+    return geometry;
+  }, [w, h, d]);
+  useEffect(() => () => edges.dispose(), [edges]);
+
   const heatColor =
-    Number(humidity) > 75 ? "#ef4444" :
-    Number(humidity) > 65 ? "#facc15" :
+    Number(humidity) > THRESHOLDS.HUMIDITY_HIGH ? "#ef4444" :
+    Number(humidity) > THRESHOLDS.HUMIDITY_WARM ? "#facc15" :
     color;
 
   const finalColor = viewMode === "HEATMAP" && active ? heatColor : color;
+
+  const readout = [
+    layers.temperature ? `${temp}°C` : null,
+    layers.humidity ? `${humidity}%` : null,
+  ].filter(Boolean).join(" | ");
 
   return (
     <group position={position}>
       {layers.structure && (
         <>
           {active && (
-            <mesh position={[0, size[1] / 2, 0]}>
+            <mesh position={[0, h / 2, 0]}>
               <boxGeometry args={size} />
               <meshStandardMaterial
                 color={finalColor}
@@ -49,13 +87,8 @@ function Room({ position, size, color, label, temp, humidity, active, viewMode, 
             </mesh>
           )}
 
-          <lineSegments position={[0, size[1] / 2, 0]}>
-            <edgesGeometry args={[new THREE.BoxGeometry(...size)]} />
-            <lineBasicMaterial
-              color={finalColor}
-              transparent
-              opacity={active ? 1 : 0.28}
-            />
+          <lineSegments position={[0, h / 2, 0]} geometry={edges}>
+            <lineBasicMaterial color={finalColor} transparent opacity={active ? 1 : 0.28} />
           </lineSegments>
         </>
       )}
@@ -64,20 +97,22 @@ function Room({ position, size, color, label, temp, humidity, active, viewMode, 
         <>
           <pointLight position={[0, 1.8, 0]} color={finalColor} intensity={4} distance={5} />
 
-          {(layers.temperature || layers.humidity) && (
+          {readout && (
+            <OptionalBoundary>
+            <Suspense fallback={null}>
             <Text
-              position={[0, size[1] + 0.6, 0]}
+              position={[0, h + 0.6, 0]}
               fontSize={0.24}
               color="#22d3ee"
               anchorX="center"
               anchorY="middle"
               maxWidth={4}
+              textAlign="center"
             >
-              {`${label}
-${layers.temperature ? `${temp}°C` : ""}
-${layers.temperature && layers.humidity ? " | " : ""}
-${layers.humidity ? `${humidity}%` : ""}`}
+              {`${label}\n${readout}`}
             </Text>
+            </Suspense>
+            </OptionalBoundary>
           )}
         </>
       )}
@@ -86,55 +121,39 @@ ${layers.humidity ? `${humidity}%` : ""}`}
 }
 
 function FlowLine({ points, color = "#00d4ff" }) {
-  return (
-    <Line
-      points={points}
-      color={color}
-      lineWidth={3}
-      transparent
-      opacity={0.75}
-    />
-  );
+  return <Line points={points} color={color} lineWidth={3} transparent opacity={0.75} />;
+}
+
+const PARTICLE_COUNT = 80;
+const PARTICLE_COLORS = ["#00d4ff", "#22c55e", "#facc15"].map((c) => new THREE.Color(c));
+
+// Generated once at module load (keeps render pure); one draw call for all particles.
+const PARTICLE_POSITIONS = new Float32Array(PARTICLE_COUNT * 3);
+const PARTICLE_VERTEX_COLORS = new Float32Array(PARTICLE_COUNT * 3);
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  PARTICLE_POSITIONS.set([(Math.random() - 0.5) * 10, Math.random() * 3.2, (Math.random() - 0.5) * 7], i * 3);
+  const c = PARTICLE_COLORS[i % PARTICLE_COLORS.length];
+  PARTICLE_VERTEX_COLORS.set([c.r, c.g, c.b], i * 3);
 }
 
 function Particles() {
-  const points = useMemo(() => {
-    return Array.from({ length: 80 }, () => [
-      (Math.random() - 0.5) * 10,
-      Math.random() * 3.2,
-      (Math.random() - 0.5) * 7,
-    ]);
-  }, []);
+  const positions = PARTICLE_POSITIONS;
+  const colors = PARTICLE_VERTEX_COLORS;
 
   return (
-    <>
-      {points.map((p, i) => {
-        const color = i % 3 === 0 ? "#00d4ff" : i % 3 === 1 ? "#22c55e" : "#facc15";
-
-        return (
-          <mesh key={i} position={p}>
-            <sphereGeometry args={[0.025, 8, 8]} />
-            <meshStandardMaterial
-              color={color}
-              emissive={color}
-              emissiveIntensity={2}
-            />
-          </mesh>
-        );
-      })}
-    </>
+    <points>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        <bufferAttribute attach="attributes-color" args={[colors, 3]} />
+      </bufferGeometry>
+      <pointsMaterial size={0.06} vertexColors toneMapped={false} sizeAttenuation />
+    </points>
   );
 }
 
-function BuildingScene({ temp, humidity, viewMode = "3D", layers = {} }) {
-  const safeLayers = {
-    structure: true,
-    temperature: true,
-    humidity: true,
-    airflow: true,
-    ...layers,
-  };
+const DEFAULT_LAYERS = { structure: true, temperature: true, humidity: true, airflow: true };
 
+function BuildingScene({ room, temp, humidity, viewMode = "3D", layers = DEFAULT_LAYERS }) {
   const camera =
     viewMode === "2D"
       ? { position: [0, 8, 0.01], fov: 45 }
@@ -159,20 +178,20 @@ function BuildingScene({ temp, humidity, viewMode = "3D", layers = {} }) {
           position={[-2.5, 0, -0.8]}
           size={[2.5, 1.1, 2.2]}
           color="#00ff88"
-          label="BEDROOM"
+          label={room.toUpperCase()}
           temp={temp}
           humidity={humidity}
-          active={true}
+          active
           viewMode={viewMode}
-          layers={safeLayers}
+          layers={layers}
         />
 
-        <Room position={[0.1, 0, -1.4]} size={[2.5, 1.2, 2.0]} color="#00b7ff" active={false} viewMode={viewMode} layers={safeLayers} />
-        <Room position={[2.45, 0, -0.7]} size={[2.3, 1.2, 2.1]} color="#facc15" active={false} viewMode={viewMode} layers={safeLayers} />
-        <Room position={[-0.7, 0, 1.55]} size={[2.2, 1.0, 1.6]} color="#22c55e" active={false} viewMode={viewMode} layers={safeLayers} />
-        <Room position={[2.0, 0, 1.45]} size={[2.4, 1.25, 1.8]} color="#3b82f6" active={false} viewMode={viewMode} layers={safeLayers} />
+        <Room position={[0.1, 0, -1.4]} size={[2.5, 1.2, 2.0]} color="#00b7ff" active={false} viewMode={viewMode} layers={layers} />
+        <Room position={[2.45, 0, -0.7]} size={[2.3, 1.2, 2.1]} color="#facc15" active={false} viewMode={viewMode} layers={layers} />
+        <Room position={[-0.7, 0, 1.55]} size={[2.2, 1.0, 1.6]} color="#22c55e" active={false} viewMode={viewMode} layers={layers} />
+        <Room position={[2.0, 0, 1.45]} size={[2.4, 1.25, 1.8]} color="#3b82f6" active={false} viewMode={viewMode} layers={layers} />
 
-        {safeLayers.airflow && (
+        {layers.airflow && (
           <>
             <FlowLine points={[[-3.6, 0.08, 0.8], [-2, 0.08, 1.3], [0, 0.08, 0.7], [1.8, 0.08, 1.3]]} />
             <FlowLine points={[[-2.7, 0.12, -1.8], [-0.6, 0.12, -1.2], [1.6, 0.12, -1.6], [3.3, 0.12, -0.6]]} color="#22c55e" />
@@ -183,12 +202,7 @@ function BuildingScene({ temp, humidity, viewMode = "3D", layers = {} }) {
         <Particles />
       </group>
 
-      <OrbitControls
-        enableZoom={false}
-        enablePan={false}
-        autoRotate={viewMode === "3D"}
-        autoRotateSpeed={0.45}
-      />
+      <OrbitControls enableZoom={false} enablePan={false} autoRotate={viewMode === "3D"} autoRotateSpeed={0.45} />
 
       <EffectComposer>
         <Bloom intensity={1.7} luminanceThreshold={0.08} luminanceSmoothing={0.2} />
@@ -197,19 +211,29 @@ function BuildingScene({ temp, humidity, viewMode = "3D", layers = {} }) {
   );
 }
 
-function Sidebar({ active, setActive }) {
-  const items = [
-    ["DASHBOARD", <LayoutDashboard />],
-    ["3D TWIN", <Box />],
-    ["FLOORPLAN", <Building2 />],
-    ["ANALYTICS", <LineChart />],
-    ["AI BRAIN", <Brain />],
-    ["ENERGY", <Zap />],
-    ["MQTT STREAM", <Cloud />],
-    ["ALERTS", <AlertTriangle />],
-    ["REPORTS", <FileText />],
-    ["SETTINGS", <Settings />],
-  ];
+const NAV_ITEMS = [
+  ["DASHBOARD", LayoutDashboard],
+  ["3D TWIN", Box],
+  ["FLOORPLAN", Building2],
+  ["ANALYTICS", LineChart],
+  ["AI BRAIN", Brain],
+  ["PREDICTIONS", Sparkles],
+  ["ENERGY", Zap],
+  ["MQTT STREAM", Cloud],
+  ["ALERTS", AlertTriangle],
+  ["REPORTS", FileText],
+  ["SETTINGS", SettingsIcon],
+];
+
+function statusLabel(status) {
+  if (!status.api) return { text: "API OFFLINE", ok: false };
+  if (!status.broker) return { text: "BROKER OFFLINE", ok: false };
+  if (!status.sensor) return { text: "SENSOR OFFLINE", ok: false };
+  return { text: "NETWORK ACTIVE", ok: true };
+}
+
+function Sidebar({ active, setActive, room, status }) {
+  const net = statusLabel(status);
 
   return (
     <aside className="sidebar">
@@ -217,18 +241,14 @@ function Sidebar({ active, setActive }) {
         <Brain size={48} />
         <div>
           <h1>AI OS v6</h1>
-          <p>BEDROOM MONITORING<br />NEURAL CONTROL CENTER</p>
+          <p>{room.toUpperCase()} MONITORING<br />NEURAL CONTROL CENTER</p>
         </div>
       </div>
 
       <nav>
-        {items.map(([name, icon]) => (
-          <button
-            key={name}
-            className={active === name ? "active" : ""}
-            onClick={() => setActive(name)}
-          >
-            {icon}
+        {NAV_ITEMS.map(([name, Icon]) => (
+          <button key={name} className={active === name ? "active" : ""} onClick={() => setActive(name)}>
+            <Icon />
             {name}
           </button>
         ))}
@@ -236,35 +256,35 @@ function Sidebar({ active, setActive }) {
 
       <div className="system">
         <span>SYSTEM INFO</span>
-        <p>Version <b>v6.0</b></p>
+        <p>Version <b>v6.1</b></p>
         <p>Backend <b>FastAPI</b></p>
         <p>Sensor <b>DHT11</b></p>
-        <p>Topic <b>smartroom/dht11</b></p>
+        <p>Topic <b>{SERVER.mqttTopic}</b></p>
         <div className="mini-brain">🧠</div>
-        <strong>NETWORK ACTIVE</strong>
+        <strong className={net.ok ? "" : "status-off"}>{net.text}</strong>
       </div>
     </aside>
   );
 }
 
-function Metric({ label, value, sub }) {
+function Metric({ label, value, sub, bad }) {
   return (
     <div className="metric">
       <span>{label}</span>
-      <h2>{value}</h2>
+      <h2 className={bad ? "status-off" : ""}>{value}</h2>
       <small>{sub}</small>
     </div>
   );
 }
 
-function LiveEnvironment({ temp, humidity, health, lastUpdate }) {
+function LiveEnvironment({ room, temp, humidity, health, lastUpdate }) {
   return (
     <section className="env-panel">
       <h3>LIVE ENVIRONMENT</h3>
 
       <div>
         <span>ROOM</span>
-        <b>Bedroom</b>
+        <b>{room}</b>
         <small>Active sensor zone</small>
       </div>
 
@@ -295,35 +315,34 @@ function LiveEnvironment({ temp, humidity, health, lastUpdate }) {
   );
 }
 
-function MqttPanel({ temp, humidity, health, lastUpdate }) {
+function MqttPanel({ room, latest, health, lastUpdate, connected }) {
+  const payload = { room: latest.room, temperature: latest.temperature, humidity: latest.humidity };
+
   return (
     <div className="mqtt panel">
-      <h3>MQTT PACKET STREAM <b>● LIVE</b></h3>
+      <h3>MQTT PACKET STREAM <b className={connected ? "" : "status-off"}>● {connected ? "LIVE" : "OFFLINE"}</b></h3>
 
       <div className="mqtt-terminal">
-        <div><span>[API]</span> http://127.0.0.1:8000</div>
-        <div><span>[TOPIC]</span> smartroom/dht11</div>
-        <div><span>[ROOM]</span> Bedroom</div>
-        <div><span>[TEMP]</span> {temp} °C</div>
-        <div><span>[HUMIDITY]</span> {humidity} %</div>
+        <div><span>[API]</span> {CLIENT.API_URL}</div>
+        <div><span>[TOPIC]</span> {SERVER.mqttTopic}</div>
+        <div><span>[ROOM]</span> {room}</div>
+        <div><span>[TEMP]</span> {latest.temperature ?? "--"} °C</div>
+        <div><span>[HUMIDITY]</span> {latest.humidity ?? "--"} %</div>
         <div><span>[AI_HEALTH]</span> {health}/100</div>
         <div><span>[LAST_PACKET]</span> {lastUpdate}</div>
+        <div><span>[BAD_PACKETS]</span> {latest.invalid_packets ?? 0}</div>
 
         <br />
 
-        <div><span>payload</span></div>
-        <div>
-          {`{ "room": "Bedroom", "temperature": ${temp}, "humidity": ${humidity}, "health_score": ${health} }`}
-        </div>
+        <div><span>last payload</span></div>
+        <div>{JSON.stringify(payload)}</div>
       </div>
     </div>
   );
 }
 
 function MiniChart({ data, field, color }) {
-  const values = data
-    .map((d) => Number(d[field]))
-    .filter((v) => !Number.isNaN(v));
+  const values = data.map((d) => Number(d[field])).filter((v) => !Number.isNaN(v));
 
   const safeValues = values.length > 1 ? values.slice(-40) : [0, 0];
   const min = Math.min(...safeValues);
@@ -331,39 +350,37 @@ function MiniChart({ data, field, color }) {
   const range = max - min || 1;
 
   const points = safeValues
-    .map((v, i) => {
-      const x = (i / (safeValues.length - 1)) * 600;
-      const y = 170 - ((v - min) / range) * 130;
-      return `${x},${y}`;
-    })
+    .map((v, i) => `${(i / (safeValues.length - 1)) * 600},${170 - ((v - min) / range) * 130}`)
     .join(" ");
 
-  const last = safeValues[safeValues.length - 1];
-  const lastY = 170 - ((last - min) / range) * 130;
+  const lastY = 170 - ((safeValues[safeValues.length - 1] - min) / range) * 130;
 
   return (
     <svg className="real-chart" viewBox="0 0 600 190">
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth="4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <polyline points={points} fill="none" stroke={color} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
       <circle cx="600" cy={lastY} r="6" fill={color} />
     </svg>
   );
 }
 
-function Dashboard({ temp, humidity, health, lastUpdate }) {
+function AlertCards({ alerts, apiOnline }) {
+  if (!apiOnline) {
+    return <div className="alert red">NO DATA<br /><small>Backend unreachable: alerts unknown.</small></div>;
+  }
+  const active = alerts.filter((a) => a !== NO_ALERTS);
+  if (active.length === 0) {
+    return <div className="alert green">ALL CLEAR<br /><small>No active alerts.</small></div>;
+  }
+  return active.map((a) => (
+    <div key={a} className="alert red">ALERT<br /><small>{a}</small></div>
+  ));
+}
+
+function Dashboard({ room, latest, temp, humidity, health, lastUpdate, alerts, status }) {
   const [viewMode, setViewMode] = useState("3D");
-  const [layers, setLayers] = useState({
-    structure: true,
-    temperature: true,
-    humidity: true,
-    airflow: true,
-  });
+  const [layers, setLayers] = useState(DEFAULT_LAYERS);
+  const toggle = (key) => setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
+  const upper = room.toUpperCase();
 
   return (
     <>
@@ -372,54 +389,59 @@ function Dashboard({ temp, humidity, health, lastUpdate }) {
           <Brain />
           <div>
             <h1>AI OS v6</h1>
-            <p>BEDROOM MONITORING<br />NEURAL CONTROL CENTER</p>
+            <p>{upper} MONITORING<br />NEURAL CONTROL CENTER</p>
           </div>
         </div>
 
-        <Metric label="AI CORE" value="ONLINE" sub="Backend/API active" />
-        <Metric label="BEDROOM TEMP" value={`${temp}°C`} sub="Live DHT11 value" />
-        <Metric label="BEDROOM HUMIDITY" value={`${humidity}%`} sub="Live DHT11 value" />
+        <Metric
+          label="AI CORE"
+          value={status.api ? "ONLINE" : "OFFLINE"}
+          sub={status.api ? "Backend/API active" : "Backend unreachable"}
+          bad={!status.api}
+        />
+        <Metric label={`${upper} TEMP`} value={`${temp}°C`} sub="Live DHT11 value" />
+        <Metric label={`${upper} HUMIDITY`} value={`${humidity}%`} sub="Live DHT11 value" />
         <Metric label="AI HEALTH" value={`${health}/100`} sub="Calculated score" />
-        <Metric label="LAST PACKET" value={lastUpdate} sub="MQTT update time" />
+        <Metric
+          label="LAST PACKET"
+          value={lastUpdate}
+          sub={status.sensor ? "MQTT update time" : "Sensor offline"}
+          bad={!status.sensor}
+        />
       </div>
 
       <div className="dashboard-grid">
-        <LiveEnvironment temp={temp} humidity={humidity} health={health} lastUpdate={lastUpdate} />
+        <LiveEnvironment room={room} temp={temp} humidity={humidity} health={health} lastUpdate={lastUpdate} />
 
         <section className="twin-panel">
           <div className="panel-header">
-            <h3>3D BEDROOM DIGITAL TWIN</h3>
+            <h3>3D {upper} DIGITAL TWIN</h3>
             <p><span>REAL-TIME</span><span>DIGITAL SHADOW</span></p>
           </div>
 
-          <BuildingScene
-            temp={temp}
-            humidity={humidity}
-            viewMode={viewMode}
-            layers={layers}
-          />
+          <BuildingScene room={room} temp={temp} humidity={humidity} viewMode={viewMode} layers={layers} />
 
           <div className="controls">
             <div>
               ROOM
-              <button className="active">BEDROOM</button>
+              <button className="active">{upper}</button>
               <button disabled>ROOM 2</button>
               <button disabled>ROOM 3</button>
             </div>
 
             <div>
               VIEW
-              <button className={viewMode === "3D" ? "active" : ""} onClick={() => setViewMode("3D")}>3D</button>
-              <button className={viewMode === "2D" ? "active" : ""} onClick={() => setViewMode("2D")}>2D</button>
-              <button className={viewMode === "HEATMAP" ? "active" : ""} onClick={() => setViewMode("HEATMAP")}>HEATMAP</button>
+              {["3D", "2D", "HEATMAP"].map((mode) => (
+                <button key={mode} className={viewMode === mode ? "active" : ""} onClick={() => setViewMode(mode)}>{mode}</button>
+              ))}
             </div>
 
             <div>
               LAYERS
-              <button className={layers.structure ? "active" : ""} onClick={() => setLayers({ ...layers, structure: !layers.structure })}><Layers /></button>
-              <button className={layers.temperature ? "active" : ""} onClick={() => setLayers({ ...layers, temperature: !layers.temperature })}><Thermometer /></button>
-              <button className={layers.humidity ? "active" : ""} onClick={() => setLayers({ ...layers, humidity: !layers.humidity })}><Droplets /></button>
-              <button className={layers.airflow ? "active" : ""} onClick={() => setLayers({ ...layers, airflow: !layers.airflow })}><Wind /></button>
+              <button className={layers.structure ? "active" : ""} onClick={() => toggle("structure")} title="Structure"><Layers /></button>
+              <button className={layers.temperature ? "active" : ""} onClick={() => toggle("temperature")} title="Temperature"><Thermometer /></button>
+              <button className={layers.humidity ? "active" : ""} onClick={() => toggle("humidity")} title="Humidity"><Droplets /></button>
+              <button className={layers.airflow ? "active" : ""} onClick={() => toggle("airflow")} title="Airflow"><Wind /></button>
             </div>
           </div>
         </section>
@@ -427,19 +449,7 @@ function Dashboard({ temp, humidity, health, lastUpdate }) {
         <aside className="right-stack">
           <div className="alerts panel">
             <h3>AI ALERTS</h3>
-
-            <div className={Number(humidity) > 70 ? "alert red" : "alert green"}>
-              {Number(humidity) > 70 ? "HIGH HUMIDITY" : "HUMIDITY NORMAL"}
-              <br />
-              <small>{Number(humidity) > 70 ? `Bedroom humidity is ${humidity}%. Ventilation recommended.` : "Humidity is acceptable."}</small>
-            </div>
-
-            <div className={Number(temp) > 27 ? "alert red" : "alert green"}>
-              {Number(temp) > 27 ? "HIGH TEMPERATURE" : "TEMPERATURE NORMAL"}
-              <br />
-              <small>{Number(temp) > 27 ? `Bedroom temperature is ${temp}°C.` : "Temperature is acceptable."}</small>
-            </div>
-
+            <AlertCards alerts={alerts} apiOnline={status.api} />
             <div className="alert blue">
               AI HEALTH
               <br />
@@ -447,22 +457,22 @@ function Dashboard({ temp, humidity, health, lastUpdate }) {
             </div>
           </div>
 
-          <MqttPanel temp={temp} humidity={humidity} health={health} lastUpdate={lastUpdate} />
+          <MqttPanel room={room} latest={latest} health={health} lastUpdate={lastUpdate} connected={status.sensor} />
         </aside>
       </div>
     </>
   );
 }
 
-function Floorplan({ temp, humidity, health }) {
+function Floorplan({ room, temp, humidity, health }) {
   return (
     <div className="module-page">
       <h1>FLOORPLAN</h1>
-      <p className="module-subtitle">Bedroom active zone + empty future rooms</p>
+      <p className="module-subtitle">{room} active zone + empty future rooms</p>
 
       <div className="floorplan-grid">
         <div className="zone zone-green">
-          <h3>BEDROOM</h3>
+          <h3>{room.toUpperCase()}</h3>
           <p>{temp}°C | {humidity}%</p>
           <span>AI Health: {health}/100</span>
         </div>
@@ -475,21 +485,21 @@ function Floorplan({ temp, humidity, health }) {
   );
 }
 
-function Analytics({ temp, humidity, health, history }) {
+function Analytics({ room, temp, humidity, health, history }) {
   return (
     <div className="module-page">
       <h1>ANALYTICS</h1>
-      <p className="module-subtitle">Only live Bedroom telemetry is shown</p>
+      <p className="module-subtitle">Only live {room} telemetry is shown</p>
 
       <div className="analytics-grid">
         <div className="module-card">
-          <h3>Bedroom Temperature</h3>
+          <h3>{room} Temperature</h3>
           <MiniChart data={history} field="temperature" color="#f97316" />
           <p>Current: <b>{temp}°C</b></p>
         </div>
 
         <div className="module-card">
-          <h3>Bedroom Humidity</h3>
+          <h3>{room} Humidity</h3>
           <MiniChart data={history} field="humidity" color="#22d3ee" />
           <p>Current: <b>{humidity}%</b></p>
         </div>
@@ -504,131 +514,153 @@ function Analytics({ temp, humidity, health, history }) {
   );
 }
 
-function Alerts({ temp, humidity, health }) {
+function Alerts({ room, health, alerts, healthInfo, apiOnline }) {
+  const active = apiOnline ? alerts.filter((a) => a !== NO_ALERTS) : ["Backend unreachable: alerts unknown."];
+
   return (
     <div className="module-page">
       <h1>ALERTS</h1>
-      <p className="module-subtitle">Bedroom environmental alert center</p>
+      <p className="module-subtitle">{room} environmental alert center · thresholds from backend</p>
 
       <div className="alerts-list">
-        <div className={Number(humidity) > 70 ? "alert-module bad" : "alert-module good"}>
-          <h3>{Number(humidity) > 70 ? "⚠ High Humidity" : "✅ Humidity Normal"}</h3>
-          <p>{Number(humidity) > 70 ? `Bedroom humidity is ${humidity}%. Ventilation recommended.` : "Bedroom humidity is acceptable."}</p>
-        </div>
-
-        <div className={Number(temp) > 27 ? "alert-module bad" : "alert-module good"}>
-          <h3>{Number(temp) > 27 ? "⚠ High Temperature" : "✅ Temperature Normal"}</h3>
-          <p>{Number(temp) > 27 ? `Bedroom temperature is ${temp}°C.` : "Bedroom temperature is acceptable."}</p>
-        </div>
+        {active.length === 0 ? (
+          <div className="alert-module good">
+            <h3>✅ All Clear</h3>
+            <p>No active alerts for {room}.</p>
+          </div>
+        ) : (
+          active.map((a) => (
+            <div key={a} className="alert-module bad">
+              <h3>⚠ Alert</h3>
+              <p>{a}</p>
+            </div>
+          ))
+        )}
 
         <div className="alert-module blue">
           <h3>🧠 AI Diagnosis</h3>
-          <p>Bedroom health score is {health}/100.</p>
+          <p>
+            {room} health score is {health}/100.
+            {healthInfo.dew_point != null && ` Dew point ${healthInfo.dew_point}°C, mold risk ${healthInfo.mold_risk}.`}
+          </p>
         </div>
       </div>
     </div>
   );
 }
 
-function Placeholder({ title }) {
-  return (
-    <div className="module-page">
-      <h1>{title}</h1>
-      <p className="module-subtitle">This module is ready for future data integration.</p>
-    </div>
-  );
-}
+const EMPTY_LATEST = { temperature: null, humidity: null, last_update: null, room: null };
 
 export default function App() {
   const [active, setActive] = useState("DASHBOARD");
-
-  const [latest, setLatest] = useState({
-    temperature: null,
-    humidity: null,
-    last_update: "--",
-  });
-
-  const [health, setHealth] = useState(0);
+  const [latest, setLatest] = useState(EMPTY_LATEST);
+  const [healthInfo, setHealthInfo] = useState({});
+  const [alerts, setAlerts] = useState([]);
   const [history, setHistory] = useState([]);
+  const [apiOnline, setApiOnline] = useState(false);
+  const [, setConfigVersion] = useState(0);
+  const refreshConfig = useCallback(() => setConfigVersion((v) => v + 1), []);
 
-  async function loadData() {
+  const loadLive = useCallback(async () => {
     try {
-      const latestResponse = await fetch(`${API_URL}/latest`);
-      const latestJson = await latestResponse.json();
-
-      const healthResponse = await fetch(`${API_URL}/health`);
-      const healthJson = await healthResponse.json();
-
-      const historyResponse = await fetch(`${API_URL}/history`);
-      const historyJson = await historyResponse.json();
-
+      const [latestJson, healthJson, alertsJson] = await Promise.all([
+        apiGet("/latest"),
+        apiGet("/health"),
+        apiGet("/alerts"),
+      ]);
       setLatest(latestJson);
-      setHealth(healthJson.health_score ?? 0);
-      setHistory(Array.isArray(historyJson) ? historyJson : []);
+      setHealthInfo(healthJson);
+      setAlerts(alertsJson.alerts || []);
+      setApiOnline(true);
     } catch (error) {
-      console.log("API offline:", error);
+      console.warn("API offline:", error);
+      setApiOnline(false);
     }
-  }
-
-  useEffect(() => {
-    loadData();
-
-    const interval = setInterval(loadData, 2000);
-
-    return () => clearInterval(interval);
   }, []);
 
-  const temp =
-    latest.temperature !== null && latest.temperature !== undefined
-      ? Number(latest.temperature).toFixed(1)
-      : "--";
+  const loadHistory = useCallback(async () => {
+    try {
+      const json = await apiGet("/history");
+      setHistory(Array.isArray(json) ? json : []);
+    } catch {
+      // live loader already reports the outage
+    }
+  }, []);
 
-  const humidity =
-    latest.humidity !== null && latest.humidity !== undefined
-      ? Number(latest.humidity).toFixed(1)
-      : "--";
+  useEffect(() => {
+    loadServerConfig().then(refreshConfig).catch(() => {});
+    const first = setTimeout(() => {
+      loadLive();
+      loadHistory();
+    }, 0);
 
-  const lastUpdate = latest.last_update ?? "--";
+    const interval = Number(CLIENT.REFRESH_INTERVAL) || 2000;
+    const live = setInterval(loadLive, interval);
+    const hist = setInterval(loadHistory, interval * HISTORY_REFRESH_FACTOR);
+    return () => {
+      clearTimeout(first);
+      clearInterval(live);
+      clearInterval(hist);
+    };
+  }, [loadLive, loadHistory, refreshConfig]);
+
+  const temp = latest.temperature != null ? Number(latest.temperature).toFixed(1) : "--";
+  const humidity = latest.humidity != null ? Number(latest.humidity).toFixed(1) : "--";
+  const healthScore = healthInfo.health_score ?? null;
+  const health = healthScore ?? "--";
+  const lastUpdate = formatTime(latest.last_update);
+  const room = CLIENT.ROOM_NAME || latest.room || "Room";
+
+  const status = {
+    api: apiOnline,
+    broker: apiOnline && Boolean(latest.broker_connected),
+    sensor: apiOnline && Boolean(latest.connected),
+  };
 
   return (
     <div className="app">
-      <Sidebar active={active} setActive={setActive} />
+      <Sidebar active={active} setActive={setActive} room={room} status={status} />
 
       <main className="main">
         {active === "DASHBOARD" && (
-          <Dashboard temp={temp} humidity={humidity} health={health} lastUpdate={lastUpdate} />
+          <Dashboard
+            room={room} latest={latest} temp={temp} humidity={humidity} health={health}
+            lastUpdate={lastUpdate} alerts={alerts} status={status}
+          />
         )}
 
         {active === "3D TWIN" && (
           <section className="twin-panel full-page-panel">
             <div className="panel-header">
-              <h3>3D BEDROOM DIGITAL TWIN</h3>
+              <h3>3D {room.toUpperCase()} DIGITAL TWIN</h3>
               <p><span>REAL-TIME</span><span>DIGITAL SHADOW</span></p>
             </div>
-            <BuildingScene temp={temp} humidity={humidity} />
+            <BuildingScene room={room} temp={temp} humidity={humidity} />
           </section>
         )}
 
-        {active === "FLOORPLAN" && (
-          <Floorplan temp={temp} humidity={humidity} health={health} />
-        )}
+        {active === "FLOORPLAN" && <Floorplan room={room} temp={temp} humidity={humidity} health={health} />}
 
         {active === "ANALYTICS" && (
-          <Analytics temp={temp} humidity={humidity} health={health} history={history} />
+          <Analytics room={room} temp={temp} humidity={humidity} health={health} history={history} />
         )}
 
         {active === "MQTT STREAM" && (
-          <MqttPanel temp={temp} humidity={humidity} health={health} lastUpdate={lastUpdate} />
+          <MqttPanel room={room} latest={latest} health={health} lastUpdate={lastUpdate} connected={status.sensor} />
         )}
 
-        {active === "ALERTS" && (
-          <Alerts temp={temp} humidity={humidity} health={health} />
-        )}
+        {active === "ALERTS" && <Alerts room={room} health={health} alerts={alerts} healthInfo={healthInfo} apiOnline={status.api} />}
 
-        {active === "AI BRAIN" && <Placeholder title="AI BRAIN" />}
-        {active === "ENERGY" && <Placeholder title="ENERGY" />}
-        {active === "REPORTS" && <Placeholder title="REPORTS" />}
-        {active === "SETTINGS" && <Placeholder title="SETTINGS" />}
+        {active === "AI BRAIN" && <AIBrain temp={temp} humidity={humidity} health={healthScore} history={history} />}
+        {active === "PREDICTIONS" && <Predictions />}
+        {active === "ENERGY" && <Energy temp={temp} humidity={humidity} history={history} />}
+        {active === "REPORTS" && <Reports room={room} history={history} />}
+        {active === "SETTINGS" && (
+          <Settings
+            temp={temp} humidity={humidity} health={health} lastUpdate={lastUpdate}
+            status={status} onConfigChange={refreshConfig}
+          />
+        )}
       </main>
     </div>
   );
