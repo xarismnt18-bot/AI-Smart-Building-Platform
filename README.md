@@ -40,7 +40,11 @@ smart-building-ai/
 ├── frontend-react/src/
 │   ├── App.jsx                # Layout, polling, dashboard pages
 │   ├── config.js              # Client settings + backend config helpers
-│   └── components/            # AIBrain, Energy, Predictions, Reports, Settings
+│   ├── hooks/                 # useTelemetry (polling), packet log, media queries
+│   └── components/
+│       ├── immersive/         # 3D twin scene + HUD (react-three-fiber)
+│       ├── pages/             # Dashboard, Analytics, Floorplan, Alerts
+│       └── ...                # AIBrain, Energy, Predictions, Reports, Settings
 ├── sensors/fake_sensor_generator.py  # Writes simulated CO2/power rows to CSV
 ├── reports/generate_report.py        # Text report over the simulated CSV
 ├── firmware/esp8266_dht11/   # Sensor sketch (secrets.h is git-ignored)
