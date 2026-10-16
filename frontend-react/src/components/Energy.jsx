@@ -162,8 +162,8 @@ export default function Energy({ temp, humidity, history }) {
               <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="16" strokeLinecap="round" />
               <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke={effColor} strokeWidth="16" strokeLinecap="round"
                 strokeDasharray={`${(calc.efficiency / 100) * 251} 251`} />
-              <text x="100" y="85" textAnchor="middle" fill={effColor} fontFamily="Orbitron" fontSize="28" fontWeight="900">{calc.efficiency}%</text>
-              <text x="100" y="108" textAnchor="middle" fill="#94a3b8" fontFamily="Share Tech Mono" fontSize="10">EFFICIENCY</text>
+              <text x="100" y="85" textAnchor="middle" fill={effColor} fontFamily="Oxanium" fontSize="28" fontWeight="900">{calc.efficiency}%</text>
+              <text x="100" y="108" textAnchor="middle" fill="#94a3b8" fontFamily="Manrope" fontSize="10">EFFICIENCY</text>
             </svg>
           </div>
         </div>
