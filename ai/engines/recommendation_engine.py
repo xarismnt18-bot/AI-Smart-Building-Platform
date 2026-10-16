@@ -1,151 +1,84 @@
 """
-Recommendation Engine - Generates intelligent suggestions based on room conditions
+Recommendation Engine - rule-based action suggestions from the current
+reading, the short-term forecast and the mold-risk estimate.
 """
+from .comfort import mold_risk
+from .thresholds import Thresholds
+
+PRIORITY_ORDER = {"critical": 0, "warning": 1, "info": 2, "success": 3}
+MAX_RECOMMENDATIONS = 5
+
+
+def _rec(priority: str, title: str, message: str, action: str) -> dict:
+    return {"priority": priority, "title": title, "message": message, "action": action}
 
 
 class RecommendationEngine:
-    """Generates prioritized recommendations for room optimization"""
-    
-    def __init__(self, co2_threshold=1000, temp_threshold=27, humidity_threshold=70, power_threshold=1200):
-        self.co2_threshold = co2_threshold
-        self.temp_threshold = temp_threshold
-        self.humidity_threshold = humidity_threshold
-        self.power_threshold = power_threshold
-    
-    def generate_recommendations(self, room_data, predictions, anomaly_status):
-        """
-        Generate intelligent recommendations based on current state and predictions
-        
-        Args:
-            room_data: Current sensor readings
-            predictions: Predictions from prediction engine
-            anomaly_status: Current anomaly detection result
-        
-        Returns:
-            List of recommendations sorted by priority
-        """
-        recommendations = []
-        
-        # Rule 1: CO2 Management
-        if room_data['occupancy'] == 'Occupied':
-            if room_data['co2'] > self.co2_threshold:
-                recommendations.append({
-                    'priority': 'critical',
-                    'title': '🌬️ Ventilation Needed',
-                    'message': f"CO2 at {room_data['co2']} ppm - Open windows or increase ventilation",
-                    'action': 'Increase Air Exchange Rate',
-                    'icon': '🔴',
-                    'color': 'red'
-                })
-            elif predictions['co2'].get('risk_level') == '🟡 Warning':
-                recommendations.append({
-                    'priority': 'warning',
-                    'title': '📈 CO2 Rising',
-                    'message': f"Predicted CO2 spike ahead - {predictions['co2'].get('trend')}",
-                    'action': 'Monitor CO2 levels',
-                    'icon': '🟡',
-                    'color': 'orange'
-                })
-        
-        # Rule 2: Temperature Control
-        if room_data['temperature'] > self.temp_threshold:
-            if room_data['occupancy'] == 'Occupied':
-                recommendations.append({
-                    'priority': 'warning',
-                    'title': '❄️ Temperature High',
-                    'message': f"Temperature {room_data['temperature']}°C - Increase cooling",
-                    'action': 'Lower Thermostat',
-                    'icon': '🔴',
-                    'color': 'red'
-                })
-        elif predictions['temperature'].get('trend') == '📈 Rising' and room_data['occupancy'] == 'Occupied':
-            recommendations.append({
-                'priority': 'info',
-                'title': '🌡️ Temperature Rising',
-                'message': f"Temperature expected to increase - Monitor comfort",
-                'action': 'Prepare Cooling',
-                'icon': '🟡',
-                'color': 'orange'
-            })
-        
-        # Rule 3: Humidity Management
-        if room_data['humidity'] > self.humidity_threshold:
-            recommendations.append({
-                'priority': 'warning',
-                'title': '💧 High Humidity',
-                'message': f"Humidity {room_data['humidity']}% - May cause discomfort",
-                'action': 'Increase Dehumidification',
-                'icon': '🔴',
-                'color': 'red'
-            })
-        
-        # Rule 4: Energy Efficiency
-        if room_data['occupancy'] == 'Empty' and room_data['power'] > self.power_threshold:
-            recommendations.append({
-                'priority': 'critical',
-                'title': '⚡ Energy Waste',
-                'message': f"Room empty but using {room_data['power']}W - Likely waste",
-                'action': 'Reduce Power Consumption',
-                'icon': '🔴',
-                'color': 'red'
-            })
-        elif predictions['power'].get('trend') == '📈 Rising' and room_data['occupancy'] == 'Empty':
-            recommendations.append({
-                'priority': 'warning',
-                'title': '📊 Power Increasing',
-                'message': f"Power usage expected to increase while empty",
-                'action': 'Investigate Power Draw',
-                'icon': '🟡',
-                'color': 'orange'
-            })
-        
-        # Rule 5: Occupancy Insights
-        if predictions['occupancy'].get('trend') == '📉 Likely to become empty':
-            recommendations.append({
-                'priority': 'info',
-                'title': '👥 Room Likely Emptying',
-                'message': f"Occupancy trend suggests room will soon be empty",
-                'action': 'Prepare for Reduced Mode',
-                'icon': '🔵',
-                'color': 'blue'
-            })
-        elif predictions['occupancy'].get('trend') == '📈 More likely to be occupied' and room_data['occupancy'] == 'Empty':
-            recommendations.append({
-                'priority': 'info',
-                'title': '📈 Activity Expected',
-                'message': f"Pattern suggests increased occupancy coming",
-                'action': 'Prepare Systems',
-                'icon': '🔵',
-                'color': 'blue'
-            })
-        
-        # Rule 6: Anomaly Response
-        if anomaly_status == 'Anomaly':
-            recommendations.insert(0, {
-                'priority': 'critical',
-                'title': '🚨 Anomaly Detected',
-                'message': f"Unusual sensor patterns detected - Investigate immediately",
-                'action': 'Review Sensor Data',
-                'icon': '🔴',
-                'color': 'red'
-            })
-        
-        # Rule 7: Comfort Optimization
-        if (room_data['occupancy'] == 'Occupied' and 
-            18 <= room_data['temperature'] <= 24 and 
-            40 <= room_data['humidity'] <= 60 and 
-            room_data['co2'] < 800):
-            recommendations.append({
-                'priority': 'success',
-                'title': '✨ Optimal Conditions',
-                'message': f"Room conditions are ideal for comfort and productivity",
-                'action': 'Maintain Current Settings',
-                'icon': '🟢',
-                'color': 'green'
-            })
-        
-        # Sort by priority
-        priority_order = {'critical': 0, 'warning': 1, 'info': 2, 'success': 3}
-        recommendations.sort(key=lambda x: priority_order.get(x['priority'], 4))
-        
-        return recommendations[:5]  # Return top 5 recommendations
+    def generate(self, latest: dict, predictions: dict, t: Thresholds) -> list[dict]:
+        recs: list[dict] = []
+        temp = latest.get("temperature")
+        hum = latest.get("humidity")
+
+        if not latest.get("broker_connected"):
+            recs.append(_rec("critical", "Broker Offline",
+                             "The backend cannot reach the MQTT broker.",
+                             "Check that Mosquitto is running"))
+        elif not latest.get("sensor_online"):
+            recs.append(_rec("critical", "Sensor Offline",
+                             "No packet from the sensor recently.",
+                             "Check the ESP8266 power and Wi-Fi"))
+
+        if temp is not None:
+            if temp > t.TEMP_HIGH:
+                recs.append(_rec("warning", "Temperature High",
+                                 f"Current {temp}°C exceeds {t.TEMP_HIGH}°C.",
+                                 "Increase cooling or open ventilation"))
+            elif temp < t.TEMP_LOW:
+                recs.append(_rec("warning", "Temperature Low",
+                                 f"Current {temp}°C is below {t.TEMP_LOW}°C.",
+                                 "Increase heating"))
+            elif predictions.get("temperature", {}).get("risk") in ("warning", "critical"):
+                p = predictions["temperature"]
+                recs.append(_rec("info", "Temperature Rising",
+                                 f"Forecast {p['predicted']}°C in {predictions['minutes_ahead']} min.",
+                                 "Prepare cooling"))
+
+        if hum is not None:
+            if hum > t.HUMIDITY_HIGH:
+                recs.append(_rec("warning", "High Humidity",
+                                 f"Humidity {hum}% exceeds {t.HUMIDITY_HIGH}%.",
+                                 "Run a dehumidifier or ventilate"))
+            elif hum < t.HUMIDITY_LOW:
+                recs.append(_rec("info", "Low Humidity",
+                                 f"Humidity {hum}% is below {t.HUMIDITY_LOW}%. Dry air.",
+                                 "Consider a humidifier"))
+            elif predictions.get("humidity", {}).get("risk") in ("warning", "critical"):
+                p = predictions["humidity"]
+                recs.append(_rec("info", "Humidity Rising",
+                                 f"Forecast {p['predicted']}% in {predictions['minutes_ahead']} min.",
+                                 "Ventilate before it builds up"))
+
+        if temp is not None and hum is not None:
+            risk = mold_risk(temp, hum)
+            if risk == "high":
+                recs.append(_rec("warning", "Mold Risk High",
+                                 "Warm and humid conditions favour mold growth.",
+                                 "Ventilate and keep humidity below 60%"))
+            elif risk == "moderate":
+                recs.append(_rec("info", "Mold Risk Moderate",
+                                 "Humidity is in the range where mold can start.",
+                                 "Air the room regularly"))
+
+            in_band = t.TEMP_LOW <= temp <= t.TEMP_HIGH and t.HUMIDITY_LOW <= hum <= t.HUMIDITY_HIGH
+            if in_band and not recs:
+                recs.append(_rec("success", "Optimal Conditions",
+                                 "Temperature and humidity are inside the comfort band.",
+                                 "Maintain current settings"))
+
+        if not recs:
+            recs.append(_rec("info", "Waiting for Data",
+                             "No sensor reading received yet.",
+                             "Check the sensor and broker"))
+
+        recs.sort(key=lambda r: PRIORITY_ORDER.get(r["priority"], 4))
+        return recs[:MAX_RECOMMENDATIONS]

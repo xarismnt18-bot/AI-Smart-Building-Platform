@@ -1,163 +1,104 @@
 """
-Prediction Engine - Forecasts future room conditions using time-series analysis
+Prediction Engine - short-term forecasts from the live telemetry history.
+
+Method: exponentially weighted linear regression over the last
+`lookback_min` minutes, fitted against real elapsed seconds (not sample
+index), so the forecast horizon is correct whatever the sensor's send rate.
+
+Confidence comes from the fit itself: the weighted residual spread is
+widened for how far we extrapolate beyond the observed window, then
+mapped to 0-100 relative to a metric-specific tolerance.
 """
+import math
+
 import numpy as np
-import pandas as pd
-from scipy import stats
-from datetime import datetime, timedelta
+
+from .thresholds import Thresholds
+
+# Change per minute that counts as a real trend (DHT11 resolution is 1 degC / 1 %).
+TREND_PER_MIN = {"temperature": 0.1, "humidity": 0.5}
+# Prediction spread (1 sigma) at which confidence drops to ~37 %.
+TOLERANCE = {"temperature": 1.0, "humidity": 5.0}
+MIN_POINTS = 3
+MIN_SPAN_SEC = 30
+
+
+def _unknown(current=None, points=0) -> dict:
+    return {
+        "current": current,
+        "predicted": None,
+        "confidence": 0,
+        "trend": "unknown",
+        "risk": "unknown",
+        "data_points": points,
+    }
+
+
+def risk_level(value: float, warn: float, crit: float) -> str:
+    if value >= crit:
+        return "critical"
+    if value >= warn:
+        return "warning"
+    return "normal"
 
 
 class PredictionEngine:
-    """Predicts future room conditions using historical data"""
-    
-    def __init__(self, lookback_minutes=20):
-        """
-        Args:
-            lookback_minutes: How many minutes of history to use for predictions
-        """
-        self.lookback_minutes = lookback_minutes
-    
-    def predict_metric(self, historical_data, room_name, metric, minutes_ahead=10):
-        """
-        Predict a metric value for a specific room
-        
-        Args:
-            historical_data: List of sensor readings from session_state.history
-            room_name: Name of the room to predict for
-            metric: Metric to predict (co2, temperature, humidity, power)
-            minutes_ahead: How many minutes into the future to predict
-        
-        Returns:
-            dict with predicted_value, confidence, trend, risk_level
-        """
-        # Filter data for this room
-        room_data = [d for d in historical_data if d.get('room') == room_name]
-        
-        if len(room_data) < 3:
-            return {
-                'predicted_value': None,
-                'confidence': 0,
-                'trend': 'unknown',
-                'risk_level': 'unknown',
-                'message': 'Insufficient data'
-            }
-        
-        # Extract metric values
-        values = np.array([float(d.get(metric, 0)) for d in room_data[-self.lookback_minutes:]])
-        
-        if len(values) < 2:
-            return {
-                'predicted_value': None,
-                'confidence': 0,
-                'trend': 'unknown',
-                'risk_level': 'unknown',
-                'message': 'Insufficient data'
-            }
-        
-        # Simple linear extrapolation with exponential weight
-        x = np.arange(len(values))
-        weights = np.exp(np.linspace(-1, 0, len(values)))  # Recent data weighted higher
-        
-        try:
-            coeffs = np.polyfit(x, values, 1, w=weights)
-            # Predict next value
-            future_x = len(values) + (minutes_ahead / 2)  # 2 readings per minute
-            predicted = float(np.polyval(coeffs, future_x))
-            
-            # Calculate confidence based on data variance
-            recent_values = values[-5:]
-            variance = np.var(recent_values)
-            confidence = min(1.0, 1.0 - (variance / (np.mean(recent_values) + 1)))
-            
-            # Determine trend
-            slope = coeffs[0]
-            trend = self._get_trend(slope, metric)
-            
-            # Determine risk level
-            risk_level = self._assess_risk(predicted, metric)
-            
-            return {
-                'predicted_value': round(predicted, 1),
-                'confidence': round(confidence * 100, 1),
-                'trend': trend,
-                'risk_level': risk_level,
-                'slope': slope,
-                'current': values[-1]
-            }
-        
-        except Exception as e:
-            return {
-                'predicted_value': None,
-                'confidence': 0,
-                'trend': 'unknown',
-                'risk_level': 'unknown',
-                'error': str(e)
-            }
-    
-    def _get_trend(self, slope, metric):
-        """Classify trend as rising, stable, or falling"""
-        threshold = {
-            'co2': 5,
-            'temperature': 0.1,
-            'humidity': 2,
-            'power': 50
-        }.get(metric, 1)
-        
-        if slope > threshold:
-            return '📈 Rising'
-        elif slope < -threshold:
-            return '📉 Falling'
+    def __init__(self, minutes_ahead: int = 10, lookback_min: int = 20):
+        self.minutes_ahead = minutes_ahead
+        self.lookback_min = lookback_min
+
+    def predict_metric(self, history: list[dict], metric: str, thresholds: Thresholds) -> dict:
+        samples = [(h["ts"], float(h[metric])) for h in history
+                   if h.get("ts") is not None and h.get(metric) is not None]
+        current = samples[-1][1] if samples else None
+        if not samples:
+            return _unknown()
+
+        t_last = samples[-1][0]
+        window = [(t, v) for t, v in samples if t_last - t <= self.lookback_min * 60]
+        span = t_last - window[0][0]
+        if len(window) < MIN_POINTS or span < MIN_SPAN_SEC:
+            return _unknown(current, len(window))
+
+        x = np.array([t - t_last for t, _ in window])  # seconds, <= 0
+        y = np.array([v for _, v in window])
+        w = np.exp(x / span)  # oldest point weight ~0.37, newest 1.0
+
+        slope, intercept = np.polyfit(x, y, 1, w=np.sqrt(w))
+        horizon = self.minutes_ahead * 60
+        predicted = float(slope * horizon + intercept)
+
+        residuals = y - (slope * x + intercept)
+        resid_std = math.sqrt(float(np.sum(w * residuals ** 2) / np.sum(w)))
+        spread = resid_std * math.sqrt(1 + (horizon / span) ** 2)
+        confidence = round(100 * math.exp(-spread / TOLERANCE[metric]), 1)
+
+        slope_per_min = slope * 60
+        threshold = TREND_PER_MIN[metric]
+        trend = "rising" if slope_per_min > threshold else "falling" if slope_per_min < -threshold else "stable"
+
+        if metric == "temperature":
+            warn, crit = thresholds.TEMP_HIGH, thresholds.TEMP_CRITICAL
         else:
-            return '➡️ Stable'
-    
-    def _assess_risk(self, value, metric):
-        """Assess risk level based on predicted value"""
-        thresholds = {
-            'co2': {'warning': 1000, 'critical': 1200},
-            'temperature': {'warning': 27, 'critical': 30},
-            'humidity': {'warning': 70, 'critical': 80},
-            'power': {'warning': 2200, 'critical': 2800}
+            warn, crit = thresholds.HUMIDITY_HIGH, thresholds.HUMIDITY_CRITICAL
+            predicted = min(max(predicted, 0.0), 100.0)
+
+        return {
+            "current": current,
+            "predicted": round(predicted, 1),
+            "confidence": confidence,
+            "trend": trend,
+            "slope_per_min": round(slope_per_min, 3) + 0.0,
+            "risk": risk_level(predicted, warn, crit),
+            "data_points": len(window),
         }
-        
-        if metric not in thresholds:
-            return 'unknown'
-        
-        t = thresholds[metric]
-        if value >= t['critical']:
-            return '🔴 Critical'
-        elif value >= t['warning']:
-            return '🟡 Warning'
-        else:
-            return '🟢 Normal'
-    
-    def predict_occupancy_trend(self, historical_data, room_name):
-        """Predict if room is likely to have more or less occupancy"""
-        room_data = [d for d in historical_data if d.get('room') == room_name]
-        
-        if len(room_data) < 5:
-            return {'trend': 'unknown', 'confidence': 0}
-        
-        # Check recent occupancy pattern
-        recent_occupancy = [1 if d.get('occupancy') == 'Occupied' else 0 
-                           for d in room_data[-10:]]
-        
-        trend_value = sum(recent_occupancy[-5:]) - sum(recent_occupancy[:5])
-        
-        if trend_value > 1:
-            return {'trend': '📈 More likely to be occupied', 'confidence': 70}
-        elif trend_value < -1:
-            return {'trend': '📉 Likely to become empty', 'confidence': 70}
-        else:
-            return {'trend': '➡️ Occupancy stable', 'confidence': 50}
-    
-    def get_all_predictions(self, historical_data, room_name, minutes_ahead=10):
-        """Get predictions for all key metrics"""
-        predictions = {}
-        for metric in ['co2', 'temperature', 'humidity', 'power']:
-            predictions[metric] = self.predict_metric(
-                historical_data, room_name, metric, minutes_ahead
-            )
-        predictions['occupancy'] = self.predict_occupancy_trend(
-            historical_data, room_name
-        )
-        return predictions
+
+    def predict_all(self, history: list[dict], thresholds: Thresholds) -> dict:
+        temp = self.predict_metric(history, "temperature", thresholds)
+        hum = self.predict_metric(history, "humidity", thresholds)
+        return {
+            "temperature": temp,
+            "humidity": hum,
+            "minutes_ahead": self.minutes_ahead,
+            "data_points": max(temp["data_points"], hum["data_points"]),
+        }
