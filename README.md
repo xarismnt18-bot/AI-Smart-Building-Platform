@@ -188,7 +188,7 @@ The bot also answers commands (only from your chat):
 | Command | Reply |
 |---------|-------|
 | `/status` | Current readings, health, 10-minute forecast and active alerts |
-| `/today` | Today's min / max / average and time spent out of range |
+| `/today`, `/night` | Today's min / max / average and time spent out of range |
 | `/mute 2h` | Pause alert messages (`30m`, `2h`, `1d`; default 1 hour) |
 | `/unmute` | Resume alert messages |
 
@@ -197,6 +197,10 @@ Every morning at `DAILY_SUMMARY_TIME` (09:00) it sends yesterday's summary: temp
 ## Alert lamp (IKEA smart plug)
 
 A lamp on an IKEA smart plug lights up while a temperature or humidity alert is active and switches off when it clears (it stays on at least 10 minutes so a reading hovering at the limit can't make it flicker, and stays dark during `LAMP_QUIET_HOURS`, 23:00-08:00). AIOS talks to the IKEA DIRIGERA hub over its local API: no cloud and no request quota. With the plug already working in the IKEA Home smart app, run `setup_ikea.bat` and press the action button under the hub when asked; it finds the hub, stores a token in `ikea.env` (git-ignored), flashes the lamp once and restarts AIOS. Telegram: `/lamp on`, `/lamp off` (during an alert, keeps it off until the alert clears), `/lamp auto on|off`. API: `GET /lamp`, `POST /lamp?on=true`.
+
+## History
+
+The backend stores the live reading every 30 seconds in `data/history.db` (SQLite, git-ignored) and keeps 30 days; nothing is stored while the sensor is offline, so gaps show when it was off. Telegram `/night` lists the last 10 hours hour by hour (`/night 24` for a day), flagging hours that crossed a limit. API: `GET /history/range?hours=12&step=300` (averages for charts) and `GET /history.csv?hours=24` (every reading, as a download; from the phone via Tailscale at `https://<pc>.ts.net/api/history.csv?hours=12`).
 
 ## Tests
 

@@ -4,6 +4,7 @@ Two-way Telegram: commands from your phone, plus the morning summary.
 Commands (only the chat saved by setup_telegram.bat gets answers):
     /status          current readings, trend and active alerts
     /today           today's min / max / average and time out of range
+    /night [hours]   hour-by-hour readings of the last night (default 10 h)
     /mute [30m|2h]   pause alert messages (default 1 hour)
     /unmute          resume alert messages
     /voice on|off|test|status   Alexa: spoken alerts, test, read the status aloud
@@ -19,6 +20,7 @@ from datetime import datetime
 from ai.engines import dew_point, health_score, mold_risk
 from backend.alerts import active_alerts
 from backend.daily_stats import DailyStats, format_day, yesterday
+from backend.history_store import format_night
 from backend.voice import status_sentence
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,7 @@ HELP = (
     "AIOS commands:\n"
     "/status – current readings and alerts\n"
     "/today – today's range and time out of comfort\n"
+    "/night – hour by hour, last 10 h (/night 24 for a day)\n"
     "/mute 2h – pause alerts (30m, 2h, 1d; default 1h)\n"
     "/unmute – resume alerts\n"
     "/voice on | off | test – spoken alerts on Alexa\n"
@@ -51,7 +54,8 @@ def parse_duration(text: str, default_sec: int = 3600) -> int | None:
 
 
 class TelegramBot:
-    def __init__(self, telegram, notifier, sensor, settings, predictor, stats: DailyStats, summary_time: str):
+    def __init__(self, telegram, notifier, sensor, settings, predictor, stats: DailyStats, summary_time: str,
+                 history=None):
         self.telegram = telegram
         self._notifier = notifier
         self._sensor = sensor
@@ -59,6 +63,7 @@ class TelegramBot:
         self._predictor = predictor
         self._stats = stats
         self._summary_hhmm = summary_time
+        self._history = history
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
 
@@ -150,6 +155,11 @@ class TelegramBot:
             return self.status_text()
         if command == "/today":
             return format_day("📊 Today so far:", self._stats.day(datetime.now().date()), self._settings.thresholds)
+        if command == "/night":
+            if self._history is None:
+                return "History is not available."
+            hours = int(arg) if arg.strip().isdigit() and 1 <= int(arg) <= 72 else 10
+            return format_night(self._history, self._settings.thresholds, hours=hours)
         if command == "/mute":
             seconds = parse_duration(arg)
             if seconds is None:

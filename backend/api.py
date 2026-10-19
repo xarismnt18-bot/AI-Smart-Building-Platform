@@ -1,9 +1,12 @@
 import logging
 import os
 import sys
+import time
+from datetime import datetime
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -12,7 +15,7 @@ from config import (  # noqa: E402
     PREDICTION_MINUTES_AHEAD, PREDICTION_LOOKBACK_MIN, SENSOR_STALE_SEC,
     MQTT_PORT, DISCOVERY_ENABLED, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC,
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN,
-    DAILY_SUMMARY_TIME, STATS_FILE,
+    DAILY_SUMMARY_TIME, STATS_FILE, HISTORY_DB,
     VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS, VOICE_STATUS_VAR, VOICE_STATUS_SEC, VOICE_STATUS_ENABLED,
     IKEA_HUB_IP, IKEA_TOKEN, IKEA_OUTLET_ID, LAMP_QUIET_HOURS,
 )
@@ -29,6 +32,7 @@ from backend.daily_stats import DailyStats  # noqa: E402
 from backend.telegram_bot import TelegramBot  # noqa: E402
 from backend.voice import VoiceAnnouncer, VoiceStatusPublisher  # noqa: E402
 from backend.ikea import AlertLamp, IkeaOutlet  # noqa: E402
+from backend.history_store import HistoryStore  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +46,15 @@ voice = VoiceAnnouncer(VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS)
 lamp = AlertLamp(IkeaOutlet(IKEA_HUB_IP, IKEA_TOKEN, IKEA_OUTLET_ID), LAMP_QUIET_HOURS)
 notifier = AlertNotifier(telegram, sensor, settings, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN, voice=voice, lamp=lamp)
 voice_status = VoiceStatusPublisher(voice, sensor, settings, VOICE_STATUS_VAR, VOICE_STATUS_SEC)
-bot = TelegramBot(telegram, notifier, sensor, settings, predictor, DailyStats(STATS_FILE), DAILY_SUMMARY_TIME)
+history_store = HistoryStore(HISTORY_DB)
+bot = TelegramBot(telegram, notifier, sensor, settings, predictor, DailyStats(STATS_FILE), DAILY_SUMMARY_TIME,
+                  history=history_store)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     sensor.start()
+    history_store.start(sensor)
     if DISCOVERY_ENABLED:
         beacon.start()
     notifier.start()
@@ -61,6 +68,7 @@ async def lifespan(app: FastAPI):
     bot.stop()
     notifier.stop()
     beacon.stop()
+    history_store.stop()
     sensor.stop()
 
 
@@ -100,6 +108,20 @@ def get_latest():
 @app.get("/history")
 def get_history(limit: int | None = Query(None, ge=1, le=HISTORY_MAX_SIZE)):
     return sensor.history(limit)
+
+
+@app.get("/history/range")
+def get_history_range(hours: float = Query(12, gt=0, le=24 * 30), step: int = Query(300, ge=30, le=86400)):
+    """Stored readings (SQLite) averaged per `step` seconds, for charts."""
+    return history_store.series(time.time() - hours * 3600, step)
+
+
+@app.get("/history.csv", response_class=PlainTextResponse)
+def get_history_csv(hours: float = Query(24, gt=0, le=24 * 30)):
+    """Every stored reading of the last `hours` as a CSV download."""
+    name = f"aios_history_{datetime.now():%Y%m%d_%H%M}.csv"
+    return PlainTextResponse(history_store.csv(time.time() - hours * 3600), media_type="text/csv",
+                             headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 @app.get("/health")
