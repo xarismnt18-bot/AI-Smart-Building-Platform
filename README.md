@@ -145,6 +145,7 @@ Malformed or out-of-range packets are ignored and counted (`invalid_packets`); t
 | `/notifications` | GET | Whether Telegram alerts are set up, and until when they are muted |
 | `/notifications/test` | POST | Send a test message to Telegram |
 | `/voice/test` | POST | Make the Echo speak a test sentence |
+| `/voice/status` | GET | The sentence Alexa reads for "Alexa, bedroom status" |
 
 ## How predictions work
 
@@ -164,6 +165,8 @@ Set in `.env` (see `config.py` for the full list):
 | `NOTIFY_COOLDOWN_MIN` | `30` | Minimum minutes between two messages for the same alert |
 | `DAILY_SUMMARY_TIME` | `09:00` | When the morning summary is sent (local time) |
 | `VOICE_QUIET_HOURS` | `23:00-08:00` | Alexa stays silent in this window |
+| `VOICE_STATUS_VAR` | `AIOS_STATUS` | Voice Monkey variable holding the status sentence |
+| `VOICE_STATUS_SEC` | `60` | How often the status sentence is checked for changes |
 | `API_RELOAD` | `false` | Auto-reload backend on code changes |
 | `TEMP_HIGH` / `TEMP_LOW` | `27` / `18` | Initial temperature thresholds (°C) |
 | `HUMIDITY_HIGH` / `HUMIDITY_LOW` | `70` / `35` | Initial humidity thresholds (%) |
@@ -194,6 +197,8 @@ Every morning at `DAILY_SUMMARY_TIME` (09:00) it sends yesterday's summary: temp
 ## Spoken alerts (Alexa)
 
 New alerts can also be announced on an Amazon Echo through [Voice Monkey](https://voicemonkey.io). Sign in there, enable the Voice Monkey skill in the Alexa app, add your Echo as a Speaker device, and in the Alexa app create a Routine (When: Smart Home → Alexa Voice Monkey v3 → VM Speakers → your speaker; Action: the Voice Monkey skill; From: your Echo). Then run `setup_voice.bat` and paste the API token; it stores it in `voice.env` (git-ignored) and makes the Echo say hello. Only new alerts are spoken, never "back to normal", never during `VOICE_QUIET_HOURS` (23:00-08:00) and never while `/mute` is on. From Telegram: `/voice off`, `/voice on`, `/voice test`. Alexa speaks English only, so the announcements are in English.
+
+**Ask Alexa for the room status.** While AIOS runs it keeps a sentence such as *"The bedroom is 24 degrees, with 85 percent humidity. That is above your limit of 70 percent."* in the Voice Monkey variable `AIOS_STATUS` (updated when it changes; set to "server is switched off" on shutdown). In the Voice Monkey console create a Flow with one Speech node whose text is `{AIOS_STATUS}` on your Echo and note its 4-digit reference. In the Alexa app create a Routine: When you say *"bedroom status"*, Action Custom *"ask voice monkey to start flow <reference>"*, From your Echo. Then say *"Alexa, bedroom status"*. `/voice status` in Telegram makes the Echo read it too. Nothing on the PC is exposed to the internet.
 
 ## Live demo build
 

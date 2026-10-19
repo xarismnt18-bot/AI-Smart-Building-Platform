@@ -76,6 +76,9 @@ NOTIFY_CHECK_SEC = int(os.getenv("NOTIFY_CHECK_SEC", "15"))
 VOICEMONKEY_TOKEN = os.getenv("VOICEMONKEY_TOKEN") or None
 VOICEMONKEY_DEVICE = os.getenv("VOICEMONKEY_DEVICE") or None
 VOICE_QUIET_HOURS = os.getenv("VOICE_QUIET_HOURS", "23:00-08:00")
+# "Alexa, bedroom status": the sentence is kept in this Voice Monkey variable
+VOICE_STATUS_VAR = os.getenv("VOICE_STATUS_VAR", "AIOS_STATUS")
+VOICE_STATUS_SEC = int(os.getenv("VOICE_STATUS_SEC", "60"))
 # Yesterday's summary is sent once a day, at or after this local time (HH:MM).
 DAILY_SUMMARY_TIME = os.getenv("DAILY_SUMMARY_TIME", "09:00")
 

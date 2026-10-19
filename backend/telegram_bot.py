@@ -6,7 +6,7 @@ Commands (only the chat saved by setup_telegram.bat gets answers):
     /today           today's min / max / average and time out of range
     /mute [30m|2h]   pause alert messages (default 1 hour)
     /unmute          resume alert messages
-    /voice on|off|test   spoken alerts on the Echo (if set up)
+    /voice on|off|test|status   Alexa: spoken alerts, test, read the status aloud
     /help            this list
 """
 import logging
@@ -18,6 +18,7 @@ from datetime import datetime
 from ai.engines import dew_point, health_score, mold_risk
 from backend.alerts import active_alerts
 from backend.daily_stats import DailyStats, format_day, yesterday
+from backend.voice import status_sentence
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,8 @@ HELP = (
     "/today – today's range and time out of comfort\n"
     "/mute 2h – pause alerts (30m, 2h, 1d; default 1h)\n"
     "/unmute – resume alerts\n"
-    "/voice on | off | test – spoken alerts on Alexa"
+    "/voice on | off | test – spoken alerts on Alexa\n"
+    "/voice status – Alexa reads the room status aloud"
 )
 
 
@@ -176,8 +178,14 @@ class TelegramBot:
             except RuntimeError as e:
                 return f"Alexa test failed: {e}"
             return "🔊 Sent. Your Echo should speak now."
+        if arg == "status":
+            try:
+                voice.announce(status_sentence(self._sensor.latest, self._settings.thresholds))
+            except RuntimeError as e:
+                return f"Alexa status failed: {e}"
+            return "🔊 Your Echo is reading the room status."
         state = "on" if voice.on else "off"
-        return f"Voice alerts are {state} (quiet hours {voice.quiet_hours}). Use /voice on, /voice off or /voice test."
+        return f"Voice alerts are {state} (quiet hours {voice.quiet_hours}). Use /voice on, /voice off, /voice test or /voice status."
 
     def status_text(self) -> str:
         latest = self._sensor.latest

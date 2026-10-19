@@ -13,7 +13,7 @@ from config import (  # noqa: E402
     MQTT_PORT, DISCOVERY_ENABLED, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC,
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN,
     DAILY_SUMMARY_TIME, STATS_FILE,
-    VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS,
+    VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS, VOICE_STATUS_VAR, VOICE_STATUS_SEC,
 )
 from ai.mqtt_client import SharedMQTTClient  # noqa: E402
 from ai.engines import (  # noqa: E402
@@ -26,7 +26,7 @@ from backend.discovery import BrokerBeacon  # noqa: E402
 from backend.notifier import AlertNotifier, TelegramClient  # noqa: E402
 from backend.daily_stats import DailyStats  # noqa: E402
 from backend.telegram_bot import TelegramBot  # noqa: E402
-from backend.voice import VoiceAnnouncer  # noqa: E402
+from backend.voice import VoiceAnnouncer, VoiceStatusPublisher  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,7 @@ beacon = BrokerBeacon(MQTT_PORT, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC)
 telegram = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
 voice = VoiceAnnouncer(VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS)
 notifier = AlertNotifier(telegram, sensor, settings, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN, voice=voice)
+voice_status = VoiceStatusPublisher(voice, sensor, settings, VOICE_STATUS_VAR, VOICE_STATUS_SEC)
 bot = TelegramBot(telegram, notifier, sensor, settings, predictor, DailyStats(STATS_FILE), DAILY_SUMMARY_TIME)
 
 
@@ -48,14 +49,16 @@ async def lifespan(app: FastAPI):
         beacon.start()
     notifier.start()
     bot.start()
+    voice_status.start()
     yield
+    voice_status.stop()
     bot.stop()
     notifier.stop()
     beacon.stop()
     sensor.stop()
 
 
-app = FastAPI(title="Smart Building AI OS API", version="6.6.0", lifespan=lifespan)
+app = FastAPI(title="Smart Building AI OS API", version="6.7.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -192,3 +195,14 @@ def send_test_announcement():
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
     return {"sent": True}
+
+
+@app.get("/voice/status")
+def get_voice_status():
+    """The sentence Alexa reads for "Alexa, bedroom status", and whether it reached Voice Monkey."""
+    return {
+        "enabled": voice.enabled,
+        "variable": voice_status.variable,
+        "text": voice_status.text,
+        "last_error": voice_status.last_error,
+    }

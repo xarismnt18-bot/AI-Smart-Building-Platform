@@ -1,22 +1,29 @@
 """
-Spoken alerts on an Amazon Echo, through the Voice Monkey announcement API.
+Alexa through Voice Monkey: spoken alerts, and the room status Alexa reads
+out when asked ("Alexa, bedroom status").
 
 Only new alerts are spoken (not "back to normal"), never during quiet hours,
-and never while alerts are muted. Off until setup_voice.bat has stored a
-Voice Monkey token and speaker device in voice.env.
+and never while alerts are muted. The status sentence is kept up to date in a
+Voice Monkey variable that a Voice Monkey Flow speaks on request, so nothing
+on this PC has to be reachable from the internet. Off until setup_voice.bat
+has stored a Voice Monkey token and speaker device in voice.env.
 """
 import json
 import logging
+import threading
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime
+
+from backend.alerts import active_alerts
 
 logger = logging.getLogger(__name__)
 
 API = "https://api-v3.voicemonkey.io"
 # Voice Monkey sits behind Cloudflare, which rejects Python's default
 # User-Agent ("error code: 1010"), so identify the client explicitly.
-HEADERS = {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (compatible; AIOS/6.6)"}
+HEADERS = {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (compatible; AIOS/6.7)"}
 
 
 def in_quiet_hours(now: datetime, quiet: str) -> bool:
@@ -47,6 +54,36 @@ def spoken(key: str, latest: dict, thresholds) -> str:
     }.get(key, f"Smart home alert for the {room}.")
 
 
+def status_sentence(latest: dict, thresholds) -> str:
+    """What Alexa says when asked for the room status."""
+    room = (latest.get("room") or "room").lower()
+    temp, hum = latest.get("temperature"), latest.get("humidity")
+    if not latest.get("broker_connected"):
+        return "The sensor broker is offline, so I have no live readings right now."
+    if not latest.get("sensor_online") or temp is None or hum is None:
+        age = latest.get("seconds_since_update")
+        when = f" for about {max(1, round(age / 60))} minutes" if age else ""
+        return f"The {room} sensor has not sent any data{when}, so I have no live readings."
+
+    keys = {a.key for a in active_alerts(latest, thresholds)}
+    parts = [f"The {room} is {temp:.0f} degrees, with {hum:.0f} percent humidity."]
+    if "humidity_high" in keys:
+        parts.append(f"That is above your limit of {thresholds.HUMIDITY_HIGH:g} percent. "
+                     "Consider running the dehumidifier.")
+    elif "humidity_low" in keys:
+        parts.append(f"The air is dry, below {thresholds.HUMIDITY_LOW:g} percent.")
+    if "temp_high" in keys:
+        parts.append(f"It is warmer than your limit of {thresholds.TEMP_HIGH:g} degrees.")
+    elif "temp_low" in keys:
+        parts.append(f"It is colder than your limit of {thresholds.TEMP_LOW:g} degrees.")
+    if not keys:
+        parts.append("Everything is in the comfort range.")
+    return " ".join(parts)
+
+
+OFFLINE_SENTENCE = "The smart home server is switched off, so I have no live readings."
+
+
 class VoiceAnnouncer:
     def __init__(self, token: str | None, device: str | None, quiet_hours: str):
         self._token = token
@@ -65,8 +102,17 @@ class VoiceAnnouncer:
         """Raises RuntimeError with a readable reason if Voice Monkey refuses."""
         if not self.enabled:
             raise RuntimeError("Voice alerts are not set up. Run setup_voice.bat.")
-        body = json.dumps({"token": self._token, "device": self._device, "speech": text}).encode("utf-8")
-        request = urllib.request.Request(f"{API}/announce", data=body, headers=HEADERS)
+        self._post("announce", {"device": self._device, "speech": text}, "announcement")
+
+    def set_variable(self, name: str, value: str) -> None:
+        """Stores a Voice Monkey variable that Flows can speak as {NAME}."""
+        if not self.enabled:
+            raise RuntimeError("Voice is not set up. Run setup_voice.bat.")
+        self._post("variables", {"variable": name, "value": value}, "variable")
+
+    def _post(self, path: str, fields: dict, what: str) -> dict:
+        body = json.dumps({"token": self._token, **fields}).encode("utf-8")
+        request = urllib.request.Request(f"{API}/{path}", data=body, headers=HEADERS)
         try:
             with urllib.request.urlopen(request, timeout=10) as response:
                 result = json.load(response)
@@ -75,8 +121,74 @@ class VoiceAnnouncer:
                 detail = json.load(e).get("error") or str(e)
             except (ValueError, AttributeError):
                 detail = str(e)
-            raise RuntimeError(f"Voice Monkey refused the announcement: {detail}") from None
+            raise RuntimeError(f"Voice Monkey refused the {what}: {detail}") from None
         except (urllib.error.URLError, TimeoutError) as e:
             raise RuntimeError(f"Could not reach Voice Monkey: {e}") from None
-        if not result.get("success"):
-            raise RuntimeError(f"Voice Monkey refused the announcement: {result}")
+        if not result.get("success", True):
+            raise RuntimeError(f"Voice Monkey refused the {what}: {result}")
+        return result
+
+
+class VoiceStatusPublisher:
+    """Keeps the status sentence in a Voice Monkey variable for "Alexa, bedroom status".
+
+    Pushes when the sentence changes (checked every interval_sec) and at least
+    every REFRESH_SEC anyway; on shutdown it leaves a "server is off" sentence.
+    """
+
+    REFRESH_SEC = 15 * 60
+
+    def __init__(self, voice: VoiceAnnouncer, sensor, settings, variable: str, interval_sec: int):
+        self._voice = voice
+        self._sensor = sensor
+        self._settings = settings
+        self.variable = variable
+        self._interval = interval_sec
+        self._last_text: str | None = None
+        self._last_push = 0.0
+        self.last_error: str | None = None
+        self._stop = threading.Event()
+
+    def start(self) -> None:
+        if not self._voice.enabled:
+            return
+        self._stop.clear()
+        threading.Thread(target=self._run, name="voice-status", daemon=True).start()
+        logger.info("Alexa status: kept in Voice Monkey variable %s", self.variable)
+
+    def stop(self) -> None:
+        if self._stop.is_set() or not self._voice.enabled:
+            return
+        self._stop.set()
+        self._push(OFFLINE_SENTENCE)
+
+    @property
+    def text(self) -> str:
+        return status_sentence(self._sensor.latest, self._settings.thresholds)
+
+    def _run(self) -> None:
+        self._stop.wait(20)  # give the sensor time to report after start-up
+        while not self._stop.is_set():
+            try:
+                self.publish()
+            except Exception:
+                logger.exception("Alexa status update failed")
+            self._stop.wait(self._interval)
+
+    def publish(self, force: bool = False) -> bool:
+        text = self.text
+        due = time.monotonic() - self._last_push >= self.REFRESH_SEC
+        if not force and text == self._last_text and not due:
+            return False
+        return self._push(text)
+
+    def _push(self, text: str) -> bool:
+        try:
+            self._voice.set_variable(self.variable, text)
+        except RuntimeError as e:
+            if e.args[0] != self.last_error:
+                logger.warning("Alexa status: %s", e)
+            self.last_error = e.args[0]
+            return False
+        self._last_text, self._last_push, self.last_error = text, time.monotonic(), None
+        return True
