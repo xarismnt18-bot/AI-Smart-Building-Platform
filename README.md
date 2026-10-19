@@ -194,6 +194,10 @@ The bot also answers commands (only from your chat):
 
 Every morning at `DAILY_SUMMARY_TIME` (09:00) it sends yesterday's summary: temperature and humidity range, and how long each limit was crossed. The day's totals are kept in `data/daily_stats.json`, so a restart doesn't lose them.
 
+## Remote access (Tailscale)
+
+The dashboard can be opened from your phone anywhere, without opening ports on the router. Install [Tailscale](https://tailscale.com/download) on the PC and on the phone and sign in with the same account, then run `setup_remote.bat`. It publishes the dashboard with `tailscale serve` at `https://<pc-name>.<tailnet>.ts.net/` (HTTPS, reachable only from your own Tailscale devices) and copies the link. The setting survives restarts; `tailscale serve reset` turns it off. The backend stays bound to 127.0.0.1: the dashboard reaches it through the Vite proxy at `/api`.
+
 ## Spoken alerts (Alexa)
 
 New alerts can also be announced on an Amazon Echo through [Voice Monkey](https://voicemonkey.io). Sign in there, enable the Voice Monkey skill in the Alexa app, add your Echo as a Speaker device, and in the Alexa app create a Routine (When: Smart Home → Alexa Voice Monkey v3 → VM Speakers → your speaker; Action: the Voice Monkey skill; From: your Echo). Then run `setup_voice.bat` and paste the API token; it stores it in `voice.env` (git-ignored) and makes the Echo say hello. Only new alerts are spoken, never "back to normal", never during `VOICE_QUIET_HOURS` (23:00-08:00) and never while `/mute` is on. From Telegram: `/voice off`, `/voice on`, `/voice test`. Alexa speaks English only, so the announcements are in English.

@@ -13,7 +13,8 @@ export const DEMO = import.meta.env.VITE_DEMO === "1";
 export const REPO_URL = "https://github.com/xarismnt18-bot/AI-Smart-Building-Platform";
 
 const clientDefaults = {
-  API_URL: "http://127.0.0.1:8000",
+  // same-origin path, proxied to the backend by the Vite dev server
+  API_URL: "/api",
   REFRESH_INTERVAL: 2000,
   ROOM_NAME: "Bedroom",
   TEMP_WARM: 25,
@@ -29,10 +30,14 @@ const thresholdDefaults = {
   HUMIDITY_CRITICAL: 85,
 };
 
+const LEGACY_API_URLS = new Set(["http://127.0.0.1:8000", "http://localhost:8000"]);
+
 function loadClientOverrides() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
+    // the old default only works on this PC; drop it so /api is used everywhere
+    if (LEGACY_API_URLS.has(parsed.API_URL)) delete parsed.API_URL;
     // keep only keys that still exist (older versions stored thresholds here)
     return Object.fromEntries(Object.entries(parsed).filter(([k]) => k in clientDefaults));
   } catch {
