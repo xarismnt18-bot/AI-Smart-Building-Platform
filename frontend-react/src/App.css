@@ -1682,3 +1682,23 @@ body { background: var(--bg); font-family: Manrope, system-ui, sans-serif; }
 /* ---- v6.5: demo link ---- */
 .system__source { display: inline-block; margin-top: 10px; color: var(--cyan); font-size: 13px; }
 .system__source:hover { color: var(--ink); }
+
+/* =====================================================================
+   v6.9: phone layout for the module pages (AI Brain, Predictions, Energy,
+   Reports, Settings). Their desktop grids are 3–6 columns wide and pushed
+   cards off-screen on a 390 px phone.
+   ===================================================================== */
+.module-page .module-card { min-width: 0; }
+
+@media (max-width: 767.98px) {
+  .module-page { overflow-x: clip; }
+  .module-page h1 { font-size: clamp(28px, 9vw, 40px); letter-spacing: 1px; overflow-wrap: anywhere; }
+  .module-subtitle { font-size: 13px; }
+
+  .pred-grid, .brain-grid, .energy-charts-row, .energy-bottom-row,
+  .reports-charts-row, .settings-grid { grid-template-columns: minmax(0, 1fr); }
+
+  .pred-how-grid, .brain-kpi-row, .brain-features, .energy-kpi-row,
+  .reports-stats-row, .settings-threshold-row, .settings-files-row,
+  .settings-status-row, .settings-status-row.two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
