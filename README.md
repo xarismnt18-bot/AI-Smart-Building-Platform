@@ -1,6 +1,14 @@
 # Smart Building AI Platform
 
-Real-time IoT monitoring for a room. An ESP8266 with a DHT11 sensor publishes temperature and humidity over MQTT. A FastAPI backend validates and stores the readings, computes health, mold risk, short-term forecasts and recommendations. A React dashboard shows it all live.
+Real-time IoT monitoring for a room. An ESP8266 with a DHT11 sensor publishes temperature and humidity over MQTT. A FastAPI backend validates and stores the readings, computes health, mold risk, short-term forecasts and recommendations. A React dashboard shows it all live as a 3D digital twin, and a Telegram bot keeps you posted.
+
+**[Live demo](https://xarismnt18-bot.github.io/AI-Smart-Building-Platform/)**: the real dashboard with a simulated sensor running in your browser, no install needed.
+
+![Dashboard: the live 3D twin with a humidity alert](docs/screenshots/demo.gif)
+
+| Forecasts and recommendations | Telemetry charts | Phone |
+|---|---|---|
+| ![Predictions page](docs/screenshots/predictions.png) | ![Analytics page](docs/screenshots/analytics.png) | ![Dashboard on a phone](docs/screenshots/mobile.png) |
 
 ## Architecture
 
@@ -134,7 +142,7 @@ Malformed or out-of-range packets are ignored and counted (`invalid_packets`); t
 | `/predictions` | GET | Forecasts for temperature and humidity |
 | `/recommendations` | GET | Suggested actions |
 | `/config` | GET / PUT / DELETE | Read, update (partial JSON) or reset thresholds |
-| `/notifications` | GET | Whether Telegram alerts are set up |
+| `/notifications` | GET | Whether Telegram alerts are set up, and until when they are muted |
 | `/notifications/test` | POST | Send a test message to Telegram |
 
 ## How predictions work
@@ -153,6 +161,7 @@ Set in `.env` (see `config.py` for the full list):
 | `SENSOR_STALE_SEC` | `30` | Seconds without packets before the sensor counts as offline |
 | `DISCOVERY_ENABLED` / `DISCOVERY_PORT` | `true` / `18831` | Broadcast the broker's address so the ESP8266 finds it |
 | `NOTIFY_COOLDOWN_MIN` | `30` | Minimum minutes between two messages for the same alert |
+| `DAILY_SUMMARY_TIME` | `09:00` | When the morning summary is sent (local time) |
 | `API_RELOAD` | `false` | Auto-reload backend on code changes |
 | `TEMP_HIGH` / `TEMP_LOW` | `27` / `18` | Initial temperature thresholds (°C) |
 | `HUMIDITY_HIGH` / `HUMIDITY_LOW` | `70` / `35` | Initial humidity thresholds (%) |
@@ -168,6 +177,21 @@ The sensor sketch lives in `firmware/esp8266_dht11/`. Copy `secrets.example.h` t
 ## Telegram alerts
 
 Run `setup_telegram.bat` and follow the prompts: create a bot with @BotFather, paste its token, press Start in the bot chat. The script stores the token and your chat id in `telegram.env` (git-ignored) and sends a test message. After a restart, the backend messages you when an alert starts or clears and when the sensor stops sending. A change must hold for two checks (~30 s) before it is reported, and the same alert repeats at most every `NOTIFY_COOLDOWN_MIN` minutes. Settings has a **Send test message** button.
+
+The bot also answers commands (only from your chat):
+
+| Command | Reply |
+|---------|-------|
+| `/status` | Current readings, health, 10-minute forecast and active alerts |
+| `/today` | Today's min / max / average and time spent out of range |
+| `/mute 2h` | Pause alert messages (`30m`, `2h`, `1d`; default 1 hour) |
+| `/unmute` | Resume alert messages |
+
+Every morning at `DAILY_SUMMARY_TIME` (09:00) it sends yesterday's summary: temperature and humidity range, and how long each limit was crossed. The day's totals are kept in `data/daily_stats.json`, so a restart doesn't lose them.
+
+## Live demo build
+
+`VITE_DEMO=1 npm run build` builds the dashboard with an in-browser stand-in for the backend (`src/lib/demoApi.js`, same formulas as the Python engines). `publish_demo.bat` builds it this way and pushes it to the `gh-pages` branch, which GitHub Pages serves. Run it again to refresh the online demo.
 
 ## Security
 

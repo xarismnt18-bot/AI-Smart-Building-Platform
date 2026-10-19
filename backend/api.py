@@ -12,6 +12,7 @@ from config import (  # noqa: E402
     PREDICTION_MINUTES_AHEAD, PREDICTION_LOOKBACK_MIN, SENSOR_STALE_SEC,
     MQTT_PORT, DISCOVERY_ENABLED, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC,
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN,
+    DAILY_SUMMARY_TIME, STATS_FILE,
 )
 from ai.mqtt_client import SharedMQTTClient  # noqa: E402
 from ai.engines import (  # noqa: E402
@@ -22,6 +23,8 @@ from backend.settings_store import SettingsStore  # noqa: E402
 from backend.alerts import active_alerts  # noqa: E402
 from backend.discovery import BrokerBeacon  # noqa: E402
 from backend.notifier import AlertNotifier, TelegramClient  # noqa: E402
+from backend.daily_stats import DailyStats  # noqa: E402
+from backend.telegram_bot import TelegramBot  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +33,9 @@ settings = SettingsStore(SETTINGS_FILE)
 predictor = PredictionEngine(PREDICTION_MINUTES_AHEAD, PREDICTION_LOOKBACK_MIN)
 recommender = RecommendationEngine()
 beacon = BrokerBeacon(MQTT_PORT, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC)
-notifier = AlertNotifier(
-    TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID),
-    sensor, settings, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN,
-)
+telegram = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+notifier = AlertNotifier(telegram, sensor, settings, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN)
+bot = TelegramBot(telegram, notifier, sensor, settings, predictor, DailyStats(STATS_FILE), DAILY_SUMMARY_TIME)
 
 
 @asynccontextmanager
@@ -42,13 +44,15 @@ async def lifespan(app: FastAPI):
     if DISCOVERY_ENABLED:
         beacon.start()
     notifier.start()
+    bot.start()
     yield
+    bot.stop()
     notifier.stop()
     beacon.stop()
     sensor.stop()
 
 
-app = FastAPI(title="Smart Building AI OS API", version="6.4.0", lifespan=lifespan)
+app = FastAPI(title="Smart Building AI OS API", version="6.5.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -158,7 +162,8 @@ def reset_config():
 # =========================
 @app.get("/notifications")
 def get_notifications():
-    return {"telegram_enabled": notifier.telegram.enabled}
+    muted = notifier.muted_until
+    return {"telegram_enabled": telegram.enabled, "muted_until": muted}
 
 
 @app.post("/notifications/test")

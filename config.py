@@ -70,6 +70,8 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or None
 # The same alert is not repeated more often than this, even if it flaps.
 NOTIFY_COOLDOWN_MIN = int(os.getenv("NOTIFY_COOLDOWN_MIN", "30"))
 NOTIFY_CHECK_SEC = int(os.getenv("NOTIFY_CHECK_SEC", "15"))
+# Yesterday's summary is sent once a day, at or after this local time (HH:MM).
+DAILY_SUMMARY_TIME = os.getenv("DAILY_SUMMARY_TIME", "09:00")
 
 
 # =========================
@@ -108,6 +110,7 @@ PREDICTION_LOOKBACK_MIN = int(os.getenv("PREDICTION_LOOKBACK_MIN", "20"))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 CSV_FILE = os.path.join(DATA_DIR, "sensor_data.csv")
 SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
+STATS_FILE = os.path.join(DATA_DIR, "daily_stats.json")
 MODEL_DIR = os.path.join(BASE_DIR, "models")
 OCCUPANCY_MODEL = os.path.join(MODEL_DIR, "occupancy_model.pkl")
 ANOMALY_MODEL = os.path.join(MODEL_DIR, "anomaly_model.pkl")

@@ -1,5 +1,5 @@
 import { Brain, Menu, X } from "lucide-react";
-import { SERVER } from "../../config";
+import { DEMO, REPO_URL, SERVER } from "../../config";
 import { PAGES } from "../../lib/pages";
 
 function connectionLabel(status) {
@@ -65,13 +65,15 @@ export default function Sidebar({ active, onNavigate, room, status, open }) {
       </nav>
 
       <div className="system">
-        <p>Version <b>v6.4</b></p>
+        <p>Version <b>v6.5</b></p>
+        {DEMO && <p>Mode <b>Demo, simulated</b></p>}
         <p>Sensor <b>DHT11</b></p>
         <p>Topic <b>{SERVER.mqttTopic}</b></p>
         <p className="system__status">
           <span className={`status-dot ${net.ok ? "" : "status-dot--off"}`} aria-hidden="true" />
           <strong className={net.ok ? "" : "status-off"}>{net.text}</strong>
         </p>
+        {DEMO && <a className="system__source" href={REPO_URL} target="_blank" rel="noreferrer">View source on GitHub</a>}
       </div>
     </aside>
   );

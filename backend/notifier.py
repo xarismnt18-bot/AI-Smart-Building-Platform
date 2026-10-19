@@ -34,15 +34,29 @@ class TelegramClient:
     def enabled(self) -> bool:
         return bool(self._token and self._chat_id)
 
+    @property
+    def chat_id(self) -> str | None:
+        return self._chat_id
+
     def send(self, text: str) -> None:
         """Raises RuntimeError with a readable reason if Telegram refuses."""
+        self._call("sendMessage", {"chat_id": self._chat_id, "text": text}, timeout=10)
+
+    def get_updates(self, offset: int | None, timeout: int = 25) -> list[dict]:
+        """Long-polls for new messages to the bot."""
+        params = {"timeout": timeout, "allowed_updates": ["message"]}
+        if offset is not None:
+            params["offset"] = offset
+        return self._call("getUpdates", params, timeout=timeout + 10).get("result", [])
+
+    def _call(self, method: str, params: dict, timeout: int) -> dict:
         if not self.enabled:
             raise RuntimeError("Telegram is not set up. Run setup_telegram.bat.")
-        url = f"https://api.telegram.org/bot{self._token}/sendMessage"
-        body = json.dumps({"chat_id": self._chat_id, "text": text}).encode("utf-8")
+        url = f"https://api.telegram.org/bot{self._token}/{method}"
+        body = json.dumps(params).encode("utf-8")
         request = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(request, timeout=10) as response:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
                 result = json.load(response)
         except urllib.error.HTTPError as e:
             try:
@@ -54,6 +68,7 @@ class TelegramClient:
             raise RuntimeError(f"Could not reach Telegram: {e}") from None
         if not result.get("ok"):
             raise RuntimeError(f"Telegram refused the message: {result.get('description')}")
+        return result
 
 
 def describe(key: str, latest: dict, thresholds, resolved: bool) -> str:
@@ -96,6 +111,7 @@ class AlertNotifier:
         self._notified: set[str] = set()      # active alerts whose message was sent
         self._pending: dict[str, int] = {}    # key -> consecutive checks the change held
         self._last_sent: dict[str, float] = {}
+        self._muted_until = 0.0  # wall-clock time; alerts are not sent before it
         self._stop = threading.Event()
         self._thread = None
 
@@ -120,6 +136,9 @@ class AlertNotifier:
                 logger.exception("Notification check failed")
 
     def check(self) -> None:
+        if not self.muted_until and self._reported - self._notified:
+            # alerts that started while muted: forget them so they are reported now
+            self._reported &= self._notified
         latest = self._sensor.latest
         thresholds = self._settings.thresholds
         current = {a.key for a in active_alerts(latest, thresholds)}
@@ -159,7 +178,21 @@ class AlertNotifier:
             self._notified.discard(key)
             self._send(describe(key, latest, thresholds, resolved=True))
 
+    # ---------- mute (from the Telegram /mute command) ----------
+    def mute(self, seconds: float) -> float:
+        self._muted_until = time.time() + seconds
+        return self._muted_until
+
+    def unmute(self) -> None:
+        self._muted_until = 0.0
+
+    @property
+    def muted_until(self) -> float | None:
+        return self._muted_until if self._muted_until > time.time() else None
+
     def _send(self, text: str) -> bool:
+        if self.muted_until:
+            return False  # treated like "not sent": no "resolved" follow-up either
         try:
             self.telegram.send(text)
             return True

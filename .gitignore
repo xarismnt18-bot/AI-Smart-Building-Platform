@@ -18,6 +18,7 @@ models/*.pkl
 
 # runtime settings saved from the dashboard
 data/settings.json
+data/daily_stats.json
 
 # ESP8266 Wi-Fi credentials
 firmware/**/secrets.h

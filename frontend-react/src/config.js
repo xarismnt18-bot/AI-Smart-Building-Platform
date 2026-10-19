@@ -4,7 +4,13 @@
 //  * alert thresholds live in the backend (GET/PUT /config) so the dashboard
 //    and the backend's /alerts, /health and /recommendations always agree.
 
+import { demoRequest } from "./lib/demoApi";
+
 const STORAGE_KEY = "smartbuilding_settings";
+
+// Public demo build (GitHub Pages): no backend, a simulated sensor in the browser.
+export const DEMO = import.meta.env.VITE_DEMO === "1";
+export const REPO_URL = "https://github.com/xarismnt18-bot/AI-Smart-Building-Platform";
 
 const clientDefaults = {
   API_URL: "http://127.0.0.1:8000",
@@ -74,6 +80,7 @@ function applyServerConfig(json) {
 }
 
 async function request(path, options) {
+  if (DEMO) return demoRequest(path, options);
   const res = await fetch(`${CLIENT.API_URL}${path}`, options);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

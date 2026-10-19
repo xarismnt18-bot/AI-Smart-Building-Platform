@@ -1,4 +1,4 @@
-import { THRESHOLDS, SERVER, formatTime } from "../../config";
+import { DEMO, THRESHOLDS, SERVER, formatTime } from "../../config";
 import { humidityLegendGradient, temperatureLegendGradient } from "../../lib/colorScale";
 import { lastSeconds, toSeries, trendPer10Min } from "../../lib/series";
 import { LIVE_ROOM_ID, ROOMS } from "./layout";
@@ -139,7 +139,7 @@ export default function ImmersiveHud({
   return (
     <div className="imm-hud">
       <header className="imm-top">
-        <p className="imm-place">{room} · live digital twin</p>
+        <p className="imm-place">{room} · {DEMO ? "live demo, simulated sensor" : "live digital twin"}</p>
         <StatusPills status={status} secondsAgo={latest.seconds_since_update} />
       </header>
 
