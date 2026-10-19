@@ -7,7 +7,9 @@ $api = 'https://api-v3.voicemonkey.io'
 Write-Host ''
 Write-Host '=== AIOS voice alerts (Alexa) ===' -ForegroundColor Cyan
 Write-Host 'Before this: sign in at voicemonkey.io, enable the Voice Monkey skill in the'
-Write-Host 'Alexa app, and add your Echo as a Speaker device in the Voice Monkey console.'
+Write-Host 'Alexa app, add your Echo as a Speaker device in the Voice Monkey console, and'
+Write-Host 'create an Alexa Routine: When = Alexa Voice Monkey v3 > VM Speakers > your speaker,'
+Write-Host 'Action = Voice Monkey skill, From = your Echo. Without it the Echo stays silent.'
 Write-Host 'Your API token is on the Voice Monkey dashboard (API / Tokens).'
 Write-Host ''
 $token = (Read-Host 'Paste your Voice Monkey API token').Trim()

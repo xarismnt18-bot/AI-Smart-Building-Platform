@@ -193,7 +193,7 @@ Every morning at `DAILY_SUMMARY_TIME` (09:00) it sends yesterday's summary: temp
 
 ## Spoken alerts (Alexa)
 
-New alerts can also be announced on an Amazon Echo through [Voice Monkey](https://voicemonkey.io). Sign in there, enable the Voice Monkey skill in the Alexa app, add your Echo as a Speaker device, then run `setup_voice.bat` and paste the API token; it stores it in `voice.env` (git-ignored) and makes the Echo say hello. Only new alerts are spoken, never "back to normal", never during `VOICE_QUIET_HOURS` (23:00-08:00) and never while `/mute` is on. From Telegram: `/voice off`, `/voice on`, `/voice test`. Alexa speaks English only, so the announcements are in English.
+New alerts can also be announced on an Amazon Echo through [Voice Monkey](https://voicemonkey.io). Sign in there, enable the Voice Monkey skill in the Alexa app, add your Echo as a Speaker device, and in the Alexa app create a Routine (When: Smart Home → Alexa Voice Monkey v3 → VM Speakers → your speaker; Action: the Voice Monkey skill; From: your Echo). Then run `setup_voice.bat` and paste the API token; it stores it in `voice.env` (git-ignored) and makes the Echo say hello. Only new alerts are spoken, never "back to normal", never during `VOICE_QUIET_HOURS` (23:00-08:00) and never while `/mute` is on. From Telegram: `/voice off`, `/voice on`, `/voice test`. Alexa speaks English only, so the announcements are in English.
 
 ## Live demo build
 
