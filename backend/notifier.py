@@ -18,6 +18,7 @@ import urllib.error
 import urllib.request
 
 from backend.alerts import active_alerts
+from backend.voice import spoken
 
 logger = logging.getLogger(__name__)
 
@@ -100,8 +101,9 @@ def describe(key: str, latest: dict, thresholds, resolved: bool) -> str:
 
 
 class AlertNotifier:
-    def __init__(self, telegram: TelegramClient, sensor, settings, check_sec: int, cooldown_min: int):
+    def __init__(self, telegram: TelegramClient, sensor, settings, check_sec: int, cooldown_min: int, voice=None):
         self.telegram = telegram
+        self.voice = voice
         self._sensor = sensor
         self._settings = settings
         self._check_sec = check_sec
@@ -116,14 +118,18 @@ class AlertNotifier:
         self._thread = None
 
     def start(self) -> None:
+        voice_on = bool(self.voice and self.voice.enabled)
+        logger.info("Voice alerts %s", "on" if voice_on else "off (run setup_voice.bat to turn them on)")
         if not self.telegram.enabled:
             logger.info("Telegram notifications off (run setup_telegram.bat to turn them on)")
+        if not (self.telegram.enabled or voice_on):
             return
         self._started_at = time.monotonic()
         self._stop.clear()
         self._thread = threading.Thread(target=self._run, name="alert-notifier", daemon=True)
         self._thread.start()
-        logger.info("Telegram notifications on")
+        if self.telegram.enabled:
+            logger.info("Telegram notifications on")
 
     def stop(self) -> None:
         self._stop.set()
@@ -171,6 +177,7 @@ class AlertNotifier:
         if self._send(describe(key, latest, thresholds, resolved=False)):
             self._last_sent[key] = now
             self._notified.add(key)
+            self._speak(spoken(key, latest, thresholds))
 
     def _clear(self, key: str, latest: dict, thresholds) -> None:
         self._reported.discard(key)
@@ -191,11 +198,22 @@ class AlertNotifier:
         return self._muted_until if self._muted_until > time.time() else None
 
     def _send(self, text: str) -> bool:
+        """True when the alert counts as delivered (Telegram, or voice-only setups)."""
         if self.muted_until:
             return False  # treated like "not sent": no "resolved" follow-up either
+        if not self.telegram.enabled:
+            return bool(self.voice and self.voice.enabled)
         try:
             self.telegram.send(text)
             return True
         except RuntimeError as e:
             logger.warning("Telegram: %s", e)
             return False
+
+    def _speak(self, text: str) -> None:
+        if not (self.voice and self.voice.should_speak()):
+            return
+        try:
+            self.voice.announce(text)
+        except RuntimeError as e:
+            logger.warning("Voice: %s", e)

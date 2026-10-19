@@ -18,6 +18,8 @@ try:
     load_dotenv(os.path.join(BASE_DIR, "mqtt_credentials.env"))
     # Telegram bot token + chat id, written by setup_telegram.bat (git-ignored).
     load_dotenv(os.path.join(BASE_DIR, "telegram.env"))
+    # Voice Monkey token + Echo device id, written by setup_voice.bat (git-ignored).
+    load_dotenv(os.path.join(BASE_DIR, "voice.env"))
 except ImportError:
     pass
 
@@ -70,6 +72,10 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or None
 # The same alert is not repeated more often than this, even if it flaps.
 NOTIFY_COOLDOWN_MIN = int(os.getenv("NOTIFY_COOLDOWN_MIN", "30"))
 NOTIFY_CHECK_SEC = int(os.getenv("NOTIFY_CHECK_SEC", "15"))
+# Spoken alerts on an Echo via Voice Monkey (optional; off until setup_voice.bat ran)
+VOICEMONKEY_TOKEN = os.getenv("VOICEMONKEY_TOKEN") or None
+VOICEMONKEY_DEVICE = os.getenv("VOICEMONKEY_DEVICE") or None
+VOICE_QUIET_HOURS = os.getenv("VOICE_QUIET_HOURS", "23:00-08:00")
 # Yesterday's summary is sent once a day, at or after this local time (HH:MM).
 DAILY_SUMMARY_TIME = os.getenv("DAILY_SUMMARY_TIME", "09:00")
 

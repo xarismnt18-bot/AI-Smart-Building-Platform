@@ -13,6 +13,7 @@ from config import (  # noqa: E402
     MQTT_PORT, DISCOVERY_ENABLED, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC,
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN,
     DAILY_SUMMARY_TIME, STATS_FILE,
+    VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS,
 )
 from ai.mqtt_client import SharedMQTTClient  # noqa: E402
 from ai.engines import (  # noqa: E402
@@ -25,6 +26,7 @@ from backend.discovery import BrokerBeacon  # noqa: E402
 from backend.notifier import AlertNotifier, TelegramClient  # noqa: E402
 from backend.daily_stats import DailyStats  # noqa: E402
 from backend.telegram_bot import TelegramBot  # noqa: E402
+from backend.voice import VoiceAnnouncer  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,8 @@ predictor = PredictionEngine(PREDICTION_MINUTES_AHEAD, PREDICTION_LOOKBACK_MIN)
 recommender = RecommendationEngine()
 beacon = BrokerBeacon(MQTT_PORT, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC)
 telegram = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
-notifier = AlertNotifier(telegram, sensor, settings, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN)
+voice = VoiceAnnouncer(VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS)
+notifier = AlertNotifier(telegram, sensor, settings, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN, voice=voice)
 bot = TelegramBot(telegram, notifier, sensor, settings, predictor, DailyStats(STATS_FILE), DAILY_SUMMARY_TIME)
 
 
@@ -52,7 +55,7 @@ async def lifespan(app: FastAPI):
     sensor.stop()
 
 
-app = FastAPI(title="Smart Building AI OS API", version="6.5.0", lifespan=lifespan)
+app = FastAPI(title="Smart Building AI OS API", version="6.6.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -163,7 +166,13 @@ def reset_config():
 @app.get("/notifications")
 def get_notifications():
     muted = notifier.muted_until
-    return {"telegram_enabled": telegram.enabled, "muted_until": muted}
+    return {
+        "telegram_enabled": telegram.enabled,
+        "voice_enabled": voice.enabled,
+        "voice_on": voice.on,
+        "voice_quiet_hours": voice.quiet_hours,
+        "muted_until": muted,
+    }
 
 
 @app.post("/notifications/test")
@@ -171,6 +180,15 @@ def send_test_notification():
     room = sensor.latest.get("room") or "AIOS"
     try:
         notifier.telegram.send(f"👋 Test from AIOS: Telegram alerts for {room} are working.")
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    return {"sent": True}
+
+
+@app.post("/voice/test")
+def send_test_announcement():
+    try:
+        voice.announce("This is a test from your smart home. Voice alerts are working.")
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
     return {"sent": True}

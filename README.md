@@ -144,6 +144,7 @@ Malformed or out-of-range packets are ignored and counted (`invalid_packets`); t
 | `/config` | GET / PUT / DELETE | Read, update (partial JSON) or reset thresholds |
 | `/notifications` | GET | Whether Telegram alerts are set up, and until when they are muted |
 | `/notifications/test` | POST | Send a test message to Telegram |
+| `/voice/test` | POST | Make the Echo speak a test sentence |
 
 ## How predictions work
 
@@ -162,6 +163,7 @@ Set in `.env` (see `config.py` for the full list):
 | `DISCOVERY_ENABLED` / `DISCOVERY_PORT` | `true` / `18831` | Broadcast the broker's address so the ESP8266 finds it |
 | `NOTIFY_COOLDOWN_MIN` | `30` | Minimum minutes between two messages for the same alert |
 | `DAILY_SUMMARY_TIME` | `09:00` | When the morning summary is sent (local time) |
+| `VOICE_QUIET_HOURS` | `23:00-08:00` | Alexa stays silent in this window |
 | `API_RELOAD` | `false` | Auto-reload backend on code changes |
 | `TEMP_HIGH` / `TEMP_LOW` | `27` / `18` | Initial temperature thresholds (°C) |
 | `HUMIDITY_HIGH` / `HUMIDITY_LOW` | `70` / `35` | Initial humidity thresholds (%) |
@@ -189,6 +191,10 @@ The bot also answers commands (only from your chat):
 
 Every morning at `DAILY_SUMMARY_TIME` (09:00) it sends yesterday's summary: temperature and humidity range, and how long each limit was crossed. The day's totals are kept in `data/daily_stats.json`, so a restart doesn't lose them.
 
+## Spoken alerts (Alexa)
+
+New alerts can also be announced on an Amazon Echo through [Voice Monkey](https://voicemonkey.io). Sign in there, enable the Voice Monkey skill in the Alexa app, add your Echo as a Speaker device, then run `setup_voice.bat` and paste the API token; it stores it in `voice.env` (git-ignored) and makes the Echo say hello. Only new alerts are spoken, never "back to normal", never during `VOICE_QUIET_HOURS` (23:00-08:00) and never while `/mute` is on. From Telegram: `/voice off`, `/voice on`, `/voice test`. Alexa speaks English only, so the announcements are in English.
+
 ## Live demo build
 
 `VITE_DEMO=1 npm run build` builds the dashboard with an in-browser stand-in for the backend (`src/lib/demoApi.js`, same formulas as the Python engines). `publish_demo.bat` builds it this way and pushes it to the `gh-pages` branch, which GitHub Pages serves. Run it again to refresh the online demo.
@@ -197,7 +203,7 @@ Every morning at `DAILY_SUMMARY_TIME` (09:00) it sends yesterday's summary: temp
 
 - **MQTT login.** Run `setup_security.bat` once (it asks for admin). It creates random passwords for `backend` and `esp8266`, turns off anonymous access in Mosquitto, and writes the logins to git-ignored files (`mqtt_credentials.env`, `firmware/.../secrets.h`). It also sets the home Wi-Fi to *Private* and limits the Mosquitto firewall rule to private networks, so the broker isn't exposed on public Wi-Fi.
 - **API is local-only.** The API has no login, so it listens on `127.0.0.1` and accepts browser calls only from the local dashboard (`CORS_ORIGINS`).
-- **No secrets in git.** `.env`, `mqtt_credentials.env`, `telegram.env`, `secrets.h`, `*.pkl` and data files are ignored. `tools/check_secrets.py` runs as a pre-commit hook and blocks commits that stage credentials or keys.
+- **No secrets in git.** `.env`, `mqtt_credentials.env`, `telegram.env`, `voice.env`, `secrets.h`, `*.pkl` and data files are ignored. `tools/check_secrets.py` runs as a pre-commit hook and blocks commits that stage credentials or keys.
 - **Model files.** `.pkl` files can execute code when loaded, so they are not versioned; retrain locally with the scripts below instead of loading pickles from elsewhere.
 - **Discovery beacon.** Any device on the LAN could fake the beacon and make the ESP8266 try to log in to it. That needs someone already on your Wi-Fi; on a network you don't trust, set `DISCOVERY_ENABLED=false` and use a fixed `MQTT_SERVER`.
 - MQTT traffic on the LAN is not encrypted (the ESP8266 is too small for comfortable TLS); the password login stops other devices from reading or injecting data.

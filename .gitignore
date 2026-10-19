@@ -29,5 +29,8 @@ mqtt_credentials.env
 # Telegram bot token written by setup_telegram.bat
 telegram.env
 
+# Voice Monkey token written by setup_voice.bat
+voice.env
+
 # audit / helper logs
 *.log

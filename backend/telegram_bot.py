@@ -6,6 +6,7 @@ Commands (only the chat saved by setup_telegram.bat gets answers):
     /today           today's min / max / average and time out of range
     /mute [30m|2h]   pause alert messages (default 1 hour)
     /unmute          resume alert messages
+    /voice on|off|test   spoken alerts on the Echo (if set up)
     /help            this list
 """
 import logging
@@ -26,7 +27,8 @@ HELP = (
     "/status – current readings and alerts\n"
     "/today – today's range and time out of comfort\n"
     "/mute 2h – pause alerts (30m, 2h, 1d; default 1h)\n"
-    "/unmute – resume alerts"
+    "/unmute – resume alerts\n"
+    "/voice on | off | test – spoken alerts on Alexa"
 )
 
 
@@ -152,9 +154,30 @@ class TelegramBot:
         if command == "/unmute":
             self._notifier.unmute()
             return "🔔 Alerts are back on."
+        if command == "/voice":
+            return self.voice_command(arg.strip().lower())
         if command.startswith("/"):
             return "I don't know that one.\n\n" + HELP
         return None
+
+    def voice_command(self, arg: str) -> str:
+        voice = self._notifier.voice
+        if not voice or not voice.enabled:
+            return "🔇 Voice alerts aren't set up. Run setup_voice.bat on the PC."
+        if arg == "off":
+            voice.on = False
+            return "🔇 Alexa will stay quiet. /voice on to bring it back."
+        if arg == "on":
+            voice.on = True
+            return f"🔊 Alexa will announce new alerts (quiet hours {voice.quiet_hours})."
+        if arg == "test":
+            try:
+                voice.announce("This is a test from your smart home. Voice alerts are working.")
+            except RuntimeError as e:
+                return f"Alexa test failed: {e}"
+            return "🔊 Sent. Your Echo should speak now."
+        state = "on" if voice.on else "off"
+        return f"Voice alerts are {state} (quiet hours {voice.quiet_hours}). Use /voice on, /voice off or /voice test."
 
     def status_text(self) -> str:
         latest = self._sensor.latest

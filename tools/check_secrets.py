@@ -11,7 +11,7 @@ import sys
 
 # Files that must never be committed, whatever they contain.
 BLOCKED_NAMES = re.compile(
-    r"(^|/)(\.env(\..+)?|mqtt_credentials\.env|telegram\.env|secrets\.h|.*\.pem|.*\.key|id_rsa.*|.*\.pkl)$",
+    r"(^|/)(\.env(\..+)?|mqtt_credentials\.env|telegram\.env|voice\.env|secrets\.h|.*\.pem|.*\.key|id_rsa.*|.*\.pkl)$",
     re.IGNORECASE,
 )
 ALLOWED_NAMES = re.compile(r"(^|/)(\.env\.example|secrets\.example\.h)$", re.IGNORECASE)
