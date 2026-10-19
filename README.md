@@ -198,6 +198,10 @@ Every morning at `DAILY_SUMMARY_TIME` (09:00) it sends yesterday's summary: temp
 
 The dashboard can be opened from your phone anywhere, without opening ports on the router. Install [Tailscale](https://tailscale.com/download) on the PC and on the phone and sign in with the same account, then run `setup_remote.bat`. It publishes the dashboard with `tailscale serve` at `https://<pc-name>.<tailnet>.ts.net/` (HTTPS, reachable only from your own Tailscale devices) and copies the link. The setting survives restarts; `tailscale serve reset` turns it off. The backend stays bound to 127.0.0.1: the dashboard reaches it through the Vite proxy at `/api`.
 
+## Laptop as the server
+
+AIOS stops while the PC sleeps or hibernates (no alerts, no remote dashboard, and Alexa keeps the last reading). `keep_awake.bat` (asks for admin) sets the plugged-in power plan so the laptop never sleeps, closing the lid does nothing and the screen turns off after 2 minutes; battery settings are unchanged. Undo it in Settings > System > Power.
+
 ## Spoken alerts (Alexa)
 
 New alerts can also be announced on an Amazon Echo through [Voice Monkey](https://voicemonkey.io). Sign in there, enable the Voice Monkey skill in the Alexa app, add your Echo as a Speaker device, and in the Alexa app create a Routine (When: Smart Home → Alexa Voice Monkey v3 → VM Speakers → your speaker; Action: the Voice Monkey skill; From: your Echo). Then run `setup_voice.bat` and paste the API token; it stores it in `voice.env` (git-ignored) and makes the Echo say hello. Only new alerts are spoken, never "back to normal", never during `VOICE_QUIET_HOURS` (23:00-08:00) and never while `/mute` is on. From Telegram: `/voice off`, `/voice on`, `/voice test`. Alexa speaks English only, so the announcements are in English.
