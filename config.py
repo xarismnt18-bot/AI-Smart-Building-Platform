@@ -78,6 +78,9 @@ VOICEMONKEY_DEVICE = os.getenv("VOICEMONKEY_DEVICE") or None
 VOICE_QUIET_HOURS = os.getenv("VOICE_QUIET_HOURS", "23:00-08:00")
 # "Alexa, bedroom status": the sentence is kept in this Voice Monkey variable
 VOICE_STATUS_VAR = os.getenv("VOICE_STATUS_VAR", "AIOS_STATUS")
+# Off by default: each update is a Voice Monkey request and the free plan allows
+# only 200 a month. Turn on (VOICE_STATUS_ENABLED=1) on a paid plan.
+VOICE_STATUS_ENABLED = os.getenv("VOICE_STATUS_ENABLED", "0") == "1"
 VOICE_STATUS_SEC = int(os.getenv("VOICE_STATUS_SEC", "60"))
 # Yesterday's summary is sent once a day, at or after this local time (HH:MM).
 DAILY_SUMMARY_TIME = os.getenv("DAILY_SUMMARY_TIME", "09:00")

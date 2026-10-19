@@ -82,6 +82,8 @@ def status_sentence(latest: dict, thresholds) -> str:
 
 
 OFFLINE_SENTENCE = "The smart home server is switched off, so I have no live readings."
+PAUSED_SENTENCE = ("Live room status is paused to stay within the Voice Monkey free plan. "
+                   "Send slash status to the Telegram bot for the current readings.")
 
 
 class VoiceAnnouncer:
@@ -148,16 +150,23 @@ class VoiceStatusPublisher:
         self._last_push = 0.0
         self.last_error: str | None = None
         self._stop = threading.Event()
+        self._started = False
 
     def start(self) -> None:
         if not self._voice.enabled:
             return
         self._stop.clear()
+        self._started = True
         threading.Thread(target=self._run, name="voice-status", daemon=True).start()
         logger.info("Alexa status: kept in Voice Monkey variable %s", self.variable)
 
+    def leave_paused_note(self) -> None:
+        """Status updates are off: say so once instead of leaving stale numbers."""
+        if self._voice.enabled:
+            threading.Thread(target=self._push, args=(PAUSED_SENTENCE,), name="voice-status", daemon=True).start()
+
     def stop(self) -> None:
-        if self._stop.is_set() or not self._voice.enabled:
+        if not self._started or self._stop.is_set():
             return
         self._stop.set()
         self._push(OFFLINE_SENTENCE)

@@ -13,7 +13,7 @@ from config import (  # noqa: E402
     MQTT_PORT, DISCOVERY_ENABLED, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC,
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN,
     DAILY_SUMMARY_TIME, STATS_FILE,
-    VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS, VOICE_STATUS_VAR, VOICE_STATUS_SEC,
+    VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS, VOICE_STATUS_VAR, VOICE_STATUS_SEC, VOICE_STATUS_ENABLED,
 )
 from ai.mqtt_client import SharedMQTTClient  # noqa: E402
 from ai.engines import (  # noqa: E402
@@ -49,7 +49,10 @@ async def lifespan(app: FastAPI):
         beacon.start()
     notifier.start()
     bot.start()
-    voice_status.start()
+    if VOICE_STATUS_ENABLED:
+        voice_status.start()
+    else:
+        voice_status.leave_paused_note()
     yield
     voice_status.stop()
     bot.stop()
@@ -201,7 +204,7 @@ def send_test_announcement():
 def get_voice_status():
     """The sentence Alexa reads for "Alexa, bedroom status", and whether it reached Voice Monkey."""
     return {
-        "enabled": voice.enabled,
+        "enabled": voice.enabled and VOICE_STATUS_ENABLED,
         "variable": voice_status.variable,
         "text": voice_status.text,
         "last_error": voice_status.last_error,
