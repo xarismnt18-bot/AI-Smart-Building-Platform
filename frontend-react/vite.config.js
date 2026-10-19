@@ -9,6 +9,11 @@ export default defineConfig({
   base: process.env.VITE_BASE || '/',
   plugins: [react()],
   server: {
+    // IPv4 loopback explicitly: on Windows "localhost" binds to ::1 only,
+    // which `tailscale serve` (proxying to 127.0.0.1:5173) cannot reach.
+    host: '127.0.0.1',
+    port: 5173,
+    strictPort: true,
     allowedHosts: ['.ts.net'],
     proxy: {
       '/api': {
