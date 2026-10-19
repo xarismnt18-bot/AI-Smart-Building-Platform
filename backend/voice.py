@@ -14,6 +14,9 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 API = "https://api-v3.voicemonkey.io"
+# Voice Monkey sits behind Cloudflare, which rejects Python's default
+# User-Agent ("error code: 1010"), so identify the client explicitly.
+HEADERS = {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (compatible; AIOS/6.6)"}
 
 
 def in_quiet_hours(now: datetime, quiet: str) -> bool:
@@ -63,7 +66,7 @@ class VoiceAnnouncer:
         if not self.enabled:
             raise RuntimeError("Voice alerts are not set up. Run setup_voice.bat.")
         body = json.dumps({"token": self._token, "device": self._device, "speech": text}).encode("utf-8")
-        request = urllib.request.Request(f"{API}/announce", data=body, headers={"Content-Type": "application/json"})
+        request = urllib.request.Request(f"{API}/announce", data=body, headers=HEADERS)
         try:
             with urllib.request.urlopen(request, timeout=10) as response:
                 result = json.load(response)
