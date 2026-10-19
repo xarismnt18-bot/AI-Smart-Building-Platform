@@ -66,7 +66,7 @@ def status_sentence(latest: dict, thresholds) -> str:
         return f"The {room} sensor has not sent any data{when}, so I have no live readings."
 
     keys = {a.key for a in active_alerts(latest, thresholds)}
-    parts = [f"The {room} is {temp:.0f} degrees, with {hum:.0f} percent humidity."]
+    parts = [f"The {room} is {temp:.1f} degrees, with {hum:.0f} percent humidity."]
     if "humidity_high" in keys:
         parts.append(f"That is above your limit of {thresholds.HUMIDITY_HIGH:g} percent. "
                      "Consider running the dehumidifier.")
