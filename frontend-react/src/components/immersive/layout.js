@@ -54,8 +54,9 @@ export const DATA_LEGS = [arc(SENSOR_POS, BROKER_POS, 3), arc(BROKER_POS, AI_POS
 export const HOME_DIR = new THREE.Vector3(15, 13, 17).normalize();
 export function homeView(narrow) {
   return {
-    position: HOME_DIR.clone().multiplyScalar(narrow ? 44 : 25),
-    target: new THREE.Vector3(0, narrow ? 3.2 : 0.5, 0),
+    position: HOME_DIR.clone().multiplyScalar(narrow ? 47 : 25),
+    // phones: centre house + data orbs in the band left free by the HUD
+    target: new THREE.Vector3(0, narrow ? 1.4 : 0.5, 0),
   };
 }
 export function roomView(room, narrow) {

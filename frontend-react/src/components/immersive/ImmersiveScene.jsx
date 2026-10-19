@@ -1,5 +1,5 @@
-import { Suspense, useMemo, useRef } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import { OptionalBoundary } from "../ui/OptionalBoundary";
@@ -7,6 +7,50 @@ import { homeView, roomView, ROOMS } from "./layout";
 import { Apartment, CameraDirector, DataPath, Ground, LiveRoomEffects, RoomTags } from "./SceneParts";
 
 const START = [34, 30, 38]; // far away; the intro flight swoops in from here
+
+/**
+ * Phones: the room card covers the top of the canvas and the view buttons the
+ * bottom, so shift the projection centre into the free band between them
+ * (the canvas still fills the screen; only the 3D framing moves).
+ */
+const CONTENT_SHARE = 0.31; // measured at the phone home view (layout.js)
+
+function BandFraming({ enabled }) {
+  const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
+  const gl = useThree((s) => s.gl);
+  const invalidate = useThree((s) => s.invalidate);
+
+  useEffect(() => {
+    const apply = () => {
+      const canvas = gl.domElement.getBoundingClientRect();
+      const top = document.querySelector(".imm-left")?.getBoundingClientRect().bottom;
+      const bottom = document.querySelector(".imm-bottom")?.getBoundingClientRect().top;
+      if (!enabled || top == null || bottom == null || bottom <= top) {
+        camera.clearViewOffset();
+      } else {
+        const { width: w, height: h } = size;
+        const center = (top + bottom) / 2 - canvas.top;
+        // house + orbs take about CONTENT_SHARE of the canvas height; zoom out
+        // on short screens so they fit in the band with some margin
+        const scale = Math.min(1, (0.85 * (bottom - top)) / (CONTENT_SHARE * h));
+        camera.setViewOffset(w * scale, h * scale, (w * scale - w) / 2, (h * scale) / 2 - center, w, h);
+      }
+      camera.updateProjectionMatrix();
+      invalidate();
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    document.querySelectorAll(".imm-left, .imm-bottom").forEach((el) => observer.observe(el));
+    return () => {
+      observer.disconnect();
+      camera.clearViewOffset();
+      camera.updateProjectionMatrix();
+    };
+  }, [enabled, camera, size, gl, invalidate]);
+
+  return null;
+}
 
 /**
  * Full-bleed 3D home. `liveColor` is null when the sensor has no data,
@@ -52,6 +96,7 @@ export default function ImmersiveScene({
         autoRotateSpeed={0.35}
       />
       <CameraDirector view={camView} controls={controls} reduced={reduced} />
+      <BandFraming enabled={narrow} />
 
       <OptionalBoundary>
         <Suspense fallback={null}>
