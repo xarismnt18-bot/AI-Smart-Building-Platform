@@ -40,7 +40,7 @@ export default function TelegramCard({ apiOnline }) {
         <>
           <p className="telegram-card__text">
             On. You get a message when an alert starts or clears, and when the sensor stops sending.
-            The same alert repeats at most every 30 minutes.
+            Each alert is sent once; if it clears and returns within 30 minutes it is not sent again.
           </p>
           <button type="button" className="export-btn secondary" onClick={sendTest} disabled={sending || !apiOnline}>
             {sending ? "SENDING..." : "SEND TEST MESSAGE"}

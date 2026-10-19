@@ -118,6 +118,14 @@ export async function sendTestNotification() {
   return request("/notifications/test", { method: "POST" });
 }
 
+export async function switchLamp(on) {
+  return request(`/lamp?on=${on}`, { method: "POST" });
+}
+
+export async function setLampAuto(on) {
+  return request(`/lamp/auto?on=${on}`, { method: "PUT" });
+}
+
 export function formatTime(iso) {
   if (!iso) return "--";
   const d = new Date(iso);

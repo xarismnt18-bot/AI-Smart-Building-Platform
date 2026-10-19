@@ -1702,3 +1702,7 @@ body { background: var(--bg); font-family: Manrope, system-ui, sans-serif; }
   .reports-stats-row, .settings-threshold-row, .settings-files-row,
   .settings-status-row, .settings-status-row.two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* v6.11: alert lamp card */
+.lamp-card__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.lamp-card__actions .export-btn { min-height: 44px; }

@@ -171,6 +171,10 @@ export async function demoRequest(path, options = {}) {
     return config();
   }
   if (route === "/notifications") return { telegram_enabled: false, muted_until: null };
+  if (route === "/lamp") {
+    if (method === "POST") throw new Error("The lamp isn't available in the online demo.");
+    return { enabled: false, auto: true, lit_by_alert: false, quiet_hours: "23:00-08:00" };
+  }
   if (route === "/notifications/test") throw new Error("Telegram isn't available in the online demo.");
   throw new Error(`Not available in the demo: ${route}`);
 }

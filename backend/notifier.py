@@ -182,7 +182,7 @@ class AlertNotifier:
         if self._send(describe(key, latest, thresholds, resolved=False)):
             self._last_sent[key] = now
             self._notified.add(key)
-            self._speak(spoken(key, latest, thresholds))
+            self._speak(key, spoken(key, latest, thresholds))
 
     def _clear(self, key: str, latest: dict, thresholds) -> None:
         self._reported.discard(key)
@@ -219,10 +219,12 @@ class AlertNotifier:
     def active_keys(self) -> set[str]:
         return set(self._reported)
 
-    def _speak(self, text: str) -> None:
-        if not (self.voice and self.voice.should_speak()):
+    def _speak(self, key: str, text: str) -> None:
+        if not (self.voice and self.voice.should_speak(key)):
             return
         try:
             self.voice.announce(text)
         except RuntimeError as e:
             logger.warning("Voice: %s", e)
+            return
+        self.voice.spoke(key)

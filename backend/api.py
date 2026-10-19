@@ -220,6 +220,12 @@ def get_lamp():
             "quiet_hours": lamp.quiet_hours}
 
 
+@app.put("/lamp/auto")
+def set_lamp_auto(on: bool):
+    lamp.auto = on
+    return get_lamp()
+
+
 @app.post("/lamp")
 def set_lamp(on: bool):
     try:

@@ -5,6 +5,7 @@ import {
   loadServerConfig, saveThresholds, resetThresholds,
 } from "../config";
 import TelegramCard from "./TelegramCard";
+import LampCard from "./LampCard";
 
 const THRESHOLD_FIELDS = [
   { key: "TEMP_LOW", label: "Temperature Low (°C)", color: "#f59e0b", min: -10, max: 50, step: 0.5 },
@@ -135,6 +136,7 @@ export default function Settings({ temp, humidity, health, lastUpdate, status, o
       )}
 
       <TelegramCard apiOnline={status.api} />
+      <LampCard apiOnline={status.api} />
 
       <div className="module-card" style={{ marginTop: 18 }}>
         <h3>SENSOR LIVE STATUS</h3>

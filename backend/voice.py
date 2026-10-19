@@ -87,18 +87,42 @@ PAUSED_SENTENCE = ("Live room status is paused to stay within the Voice Monkey f
 
 
 class VoiceAnnouncer:
+    REPEAT_SEC = 6 * 3600
+    DAILY_MAX = 5
+
     def __init__(self, token: str | None, device: str | None, quiet_hours: str):
         self._token = token
         self._device = device
         self.quiet_hours = quiet_hours
         self.on = True  # switched by the Telegram /voice command
+        self._last_spoken: dict[str, datetime] = {}
+        self._budget_day = None
+        self._spoken_today = 0
 
     @property
     def enabled(self) -> bool:
         return bool(self._token and self._device)
 
-    def should_speak(self, now: datetime | None = None) -> bool:
-        return self.enabled and self.on and not in_quiet_hours(now or datetime.now(), self.quiet_hours)
+    def should_speak(self, key: str | None = None, now: datetime | None = None) -> bool:
+        """Quiet hours, /voice off, and a budget: every announcement is a Voice
+        Monkey request (free plan: 200 a month), so the same alert is spoken at
+        most once every REPEAT_SEC and no more than DAILY_MAX alerts a day."""
+        now = now or datetime.now()
+        if not (self.enabled and self.on) or in_quiet_hours(now, self.quiet_hours):
+            return False
+        day = now.date()
+        if self._budget_day != day:
+            self._budget_day, self._spoken_today = day, 0
+        if self._spoken_today >= self.DAILY_MAX:
+            return False
+        last = self._last_spoken.get(key)
+        return key is None or last is None or (now - last).total_seconds() >= self.REPEAT_SEC
+
+    def spoke(self, key: str | None, now: datetime | None = None) -> None:
+        now = now or datetime.now()
+        self._spoken_today += 1
+        if key:
+            self._last_spoken[key] = now
 
     def announce(self, text: str) -> None:
         """Raises RuntimeError with a readable reason if Voice Monkey refuses."""
