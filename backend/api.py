@@ -14,6 +14,7 @@ from config import (  # noqa: E402
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN,
     DAILY_SUMMARY_TIME, STATS_FILE,
     VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS, VOICE_STATUS_VAR, VOICE_STATUS_SEC, VOICE_STATUS_ENABLED,
+    IKEA_HUB_IP, IKEA_TOKEN, IKEA_OUTLET_ID, LAMP_QUIET_HOURS,
 )
 from ai.mqtt_client import SharedMQTTClient  # noqa: E402
 from ai.engines import (  # noqa: E402
@@ -27,6 +28,7 @@ from backend.notifier import AlertNotifier, TelegramClient  # noqa: E402
 from backend.daily_stats import DailyStats  # noqa: E402
 from backend.telegram_bot import TelegramBot  # noqa: E402
 from backend.voice import VoiceAnnouncer, VoiceStatusPublisher  # noqa: E402
+from backend.ikea import AlertLamp, IkeaOutlet  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +39,8 @@ recommender = RecommendationEngine()
 beacon = BrokerBeacon(MQTT_PORT, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC)
 telegram = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
 voice = VoiceAnnouncer(VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS)
-notifier = AlertNotifier(telegram, sensor, settings, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN, voice=voice)
+lamp = AlertLamp(IkeaOutlet(IKEA_HUB_IP, IKEA_TOKEN, IKEA_OUTLET_ID), LAMP_QUIET_HOURS)
+notifier = AlertNotifier(telegram, sensor, settings, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN, voice=voice, lamp=lamp)
 voice_status = VoiceStatusPublisher(voice, sensor, settings, VOICE_STATUS_VAR, VOICE_STATUS_SEC)
 bot = TelegramBot(telegram, notifier, sensor, settings, predictor, DailyStats(STATS_FILE), DAILY_SUMMARY_TIME)
 
@@ -209,3 +212,18 @@ def get_voice_status():
         "text": voice_status.text,
         "last_error": voice_status.last_error,
     }
+
+
+@app.get("/lamp")
+def get_lamp():
+    return {"enabled": lamp.enabled, "auto": lamp.auto, "lit_by_alert": lamp.lit_by_alert,
+            "quiet_hours": lamp.quiet_hours}
+
+
+@app.post("/lamp")
+def set_lamp(on: bool):
+    try:
+        lamp.manual(on, alert_active=bool(notifier.active_keys))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    return {"on": on}

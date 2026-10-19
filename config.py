@@ -20,6 +20,8 @@ try:
     load_dotenv(os.path.join(BASE_DIR, "telegram.env"))
     # Voice Monkey token + Echo device id, written by setup_voice.bat (git-ignored).
     load_dotenv(os.path.join(BASE_DIR, "voice.env"))
+    # IKEA DIRIGERA hub address, token + plug id, written by setup_ikea.bat (git-ignored).
+    load_dotenv(os.path.join(BASE_DIR, "ikea.env"))
 except ImportError:
     pass
 
@@ -83,6 +85,12 @@ VOICE_STATUS_VAR = os.getenv("VOICE_STATUS_VAR", "AIOS_STATUS")
 VOICE_STATUS_ENABLED = os.getenv("VOICE_STATUS_ENABLED", "0") == "1"
 VOICE_STATUS_SEC = int(os.getenv("VOICE_STATUS_SEC", "60"))
 # Yesterday's summary is sent once a day, at or after this local time (HH:MM).
+# IKEA smart plug used as an alert lamp (optional; off until setup_ikea.bat ran)
+IKEA_HUB_IP = os.getenv("IKEA_HUB_IP") or None
+IKEA_TOKEN = os.getenv("IKEA_TOKEN") or None
+IKEA_OUTLET_ID = os.getenv("IKEA_OUTLET_ID") or None
+LAMP_QUIET_HOURS = os.getenv("LAMP_QUIET_HOURS", "23:00-08:00")
+
 DAILY_SUMMARY_TIME = os.getenv("DAILY_SUMMARY_TIME", "09:00")
 
 

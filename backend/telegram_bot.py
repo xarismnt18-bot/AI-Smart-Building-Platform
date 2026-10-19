@@ -7,6 +7,7 @@ Commands (only the chat saved by setup_telegram.bat gets answers):
     /mute [30m|2h]   pause alert messages (default 1 hour)
     /unmute          resume alert messages
     /voice on|off|test|status   Alexa: spoken alerts, test, read the status aloud
+    /lamp on|off|auto on|auto off   the IKEA alert lamp
     /help            this list
 """
 import logging
@@ -30,7 +31,9 @@ HELP = (
     "/mute 2h – pause alerts (30m, 2h, 1d; default 1h)\n"
     "/unmute – resume alerts\n"
     "/voice on | off | test – spoken alerts on Alexa\n"
-    "/voice status – Alexa reads the room status aloud"
+    "/voice status – Alexa reads the room status aloud\n"
+    "/lamp on | off – switch the alert lamp\n"
+    "/lamp auto on | off – lamp lights up on alerts"
 )
 
 
@@ -158,9 +161,28 @@ class TelegramBot:
             return "🔔 Alerts are back on."
         if command == "/voice":
             return self.voice_command(arg.strip().lower())
+        if command == "/lamp":
+            return self.lamp_command(arg.strip().lower())
         if command.startswith("/"):
             return "I don't know that one.\n\n" + HELP
         return None
+
+    def lamp_command(self, arg: str) -> str:
+        lamp = self._notifier.lamp
+        if not lamp or not lamp.enabled:
+            return "💡 The alert lamp isn't set up. Run setup_ikea.bat on the PC."
+        if arg in ("auto on", "auto off"):
+            lamp.auto = arg == "auto on"
+            return ("💡 The lamp will light up on temperature or humidity alerts "
+                    f"(not during {lamp.quiet_hours})." if lamp.auto else "💡 Automatic lamp off. /lamp auto on to bring it back.")
+        if arg in ("on", "off"):
+            try:
+                lamp.manual(arg == "on", alert_active=bool(self._notifier.active_keys))
+            except RuntimeError as e:
+                return f"Lamp: {e}"
+            return "💡 Lamp on." if arg == "on" else "💡 Lamp off."
+        auto = "on" if lamp.auto else "off"
+        return f"Automatic alert lamp is {auto}. Use /lamp on, /lamp off, /lamp auto on or /lamp auto off."
 
     def voice_command(self, arg: str) -> str:
         voice = self._notifier.voice
@@ -211,6 +233,9 @@ class TelegramBot:
             lines.append(f"Next {forecast['minutes_ahead']} min: {trend}, ~{predicted:.1f}°C")
         alerts = [a.message for a in active_alerts(latest, t)]
         lines.append("⚠️ " + "\n⚠️ ".join(alerts) if alerts else "✅ No alerts.")
+        lamp = self._notifier.lamp
+        if lamp and lamp.lit_by_alert:
+            lines.append("💡 Alert lamp is on.")
         muted = self._notifier.muted_until
         if muted:
             lines.append(f"🔕 Alerts paused until {datetime.fromtimestamp(muted):%H:%M}.")

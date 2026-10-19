@@ -101,9 +101,10 @@ def describe(key: str, latest: dict, thresholds, resolved: bool) -> str:
 
 
 class AlertNotifier:
-    def __init__(self, telegram: TelegramClient, sensor, settings, check_sec: int, cooldown_min: int, voice=None):
+    def __init__(self, telegram: TelegramClient, sensor, settings, check_sec: int, cooldown_min: int, voice=None, lamp=None):
         self.telegram = telegram
         self.voice = voice
+        self.lamp = lamp
         self._sensor = sensor
         self._settings = settings
         self._check_sec = check_sec
@@ -119,10 +120,12 @@ class AlertNotifier:
 
     def start(self) -> None:
         voice_on = bool(self.voice and self.voice.enabled)
+        lamp_on = bool(self.lamp and self.lamp.enabled)
         logger.info("Voice alerts %s", "on" if voice_on else "off (run setup_voice.bat to turn them on)")
+        logger.info("Alert lamp %s", "on" if lamp_on else "off (run setup_ikea.bat to turn it on)")
         if not self.telegram.enabled:
             logger.info("Telegram notifications off (run setup_telegram.bat to turn them on)")
-        if not (self.telegram.enabled or voice_on):
+        if not (self.telegram.enabled or voice_on or lamp_on):
             return
         self._started_at = time.monotonic()
         self._stop.clear()
@@ -168,6 +171,8 @@ class AlertNotifier:
                 self._raise(key, latest, thresholds)
             else:
                 self._clear(key, latest, thresholds)
+        if self.lamp:
+            self.lamp.sync(self._reported)
 
     def _raise(self, key: str, latest: dict, thresholds) -> None:
         self._reported.add(key)
@@ -209,6 +214,10 @@ class AlertNotifier:
         except RuntimeError as e:
             logger.warning("Telegram: %s", e)
             return False
+
+    @property
+    def active_keys(self) -> set[str]:
+        return set(self._reported)
 
     def _speak(self, text: str) -> None:
         if not (self.voice and self.voice.should_speak()):

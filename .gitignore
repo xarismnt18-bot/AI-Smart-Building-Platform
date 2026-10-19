@@ -32,5 +32,8 @@ telegram.env
 # Voice Monkey token written by setup_voice.bat
 voice.env
 
+# IKEA hub token written by setup_ikea.bat
+ikea.env
+
 # audit / helper logs
 *.log
