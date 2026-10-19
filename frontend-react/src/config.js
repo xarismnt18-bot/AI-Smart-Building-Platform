@@ -102,6 +102,10 @@ export async function resetThresholds() {
   return applyServerConfig(await request("/config", { method: "DELETE" }));
 }
 
+export async function sendTestNotification() {
+  return request("/notifications/test", { method: "POST" });
+}
+
 export function formatTime(iso) {
   if (!iso) return "--";
   const d = new Date(iso);

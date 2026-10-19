@@ -1673,3 +1673,8 @@ body { background: var(--bg); font-family: Manrope, system-ui, sans-serif; }
   .imm-big, .imm-seg button, .imm-chips button { transition: none; }
   .imm-log li.is-fresh { animation: none; }
 }
+
+/* ---- v6.4: Telegram card ---- */
+.telegram-card { margin-top: 18px; }
+.telegram-card__text { color: var(--ink-2); line-height: 1.55; margin: 6px 0 12px; max-width: 70ch; }
+.telegram-card__text code { color: var(--cyan); }

@@ -10,6 +10,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from config import (  # noqa: E402
     CORS_ORIGINS, HISTORY_MAX_SIZE, SETTINGS_FILE,
     PREDICTION_MINUTES_AHEAD, PREDICTION_LOOKBACK_MIN, SENSOR_STALE_SEC,
+    MQTT_PORT, DISCOVERY_ENABLED, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC,
+    TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN,
 )
 from ai.mqtt_client import SharedMQTTClient  # noqa: E402
 from ai.engines import (  # noqa: E402
@@ -17,6 +19,9 @@ from ai.engines import (  # noqa: E402
     dew_point, health_score, health_status, mold_risk,
 )
 from backend.settings_store import SettingsStore  # noqa: E402
+from backend.alerts import active_alerts  # noqa: E402
+from backend.discovery import BrokerBeacon  # noqa: E402
+from backend.notifier import AlertNotifier, TelegramClient  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -24,22 +29,32 @@ sensor = SharedMQTTClient(max_history=HISTORY_MAX_SIZE)
 settings = SettingsStore(SETTINGS_FILE)
 predictor = PredictionEngine(PREDICTION_MINUTES_AHEAD, PREDICTION_LOOKBACK_MIN)
 recommender = RecommendationEngine()
+beacon = BrokerBeacon(MQTT_PORT, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC)
+notifier = AlertNotifier(
+    TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID),
+    sensor, settings, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN,
+)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     sensor.start()
+    if DISCOVERY_ENABLED:
+        beacon.start()
+    notifier.start()
     yield
+    notifier.stop()
+    beacon.stop()
     sensor.stop()
 
 
-app = FastAPI(title="Smart Building AI OS API", version="6.1.0", lifespan=lifespan)
+app = FastAPI(title="Smart Building AI OS API", version="6.4.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=False,  # no cookies/auth; required to be False with "*"
-    allow_methods=["GET", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -97,25 +112,7 @@ def get_health():
 
 @app.get("/alerts")
 def get_alerts():
-    latest = sensor.latest
-    t = settings.thresholds
-    temp, hum = latest["temperature"], latest["humidity"]
-    alerts = []
-
-    if not latest["broker_connected"]:
-        alerts.append("MQTT broker is unreachable.")
-    elif not latest["sensor_online"]:
-        alerts.append("Sensor is offline: no recent packets.")
-
-    if temp is not None and temp > t.TEMP_HIGH:
-        alerts.append("Temperature is above comfort threshold.")
-    if temp is not None and temp < t.TEMP_LOW:
-        alerts.append("Temperature is below comfort threshold.")
-    if hum is not None and hum > t.HUMIDITY_HIGH:
-        alerts.append("Humidity is above comfort threshold. Mold risk may increase.")
-    if hum is not None and hum < t.HUMIDITY_LOW:
-        alerts.append("Humidity is low. Dry-air conditions detected.")
-
+    alerts = [a.message for a in active_alerts(sensor.latest, settings.thresholds)]
     return {"alerts": alerts or ["No active alerts."]}
 
 
@@ -154,3 +151,21 @@ def put_config(changes: dict[str, float]):
 @app.delete("/config")
 def reset_config():
     return {"thresholds": settings.reset().as_dict(), "mqtt_topic": sensor.topic}
+
+
+# =========================
+# NOTIFICATIONS
+# =========================
+@app.get("/notifications")
+def get_notifications():
+    return {"telegram_enabled": notifier.telegram.enabled}
+
+
+@app.post("/notifications/test")
+def send_test_notification():
+    room = sensor.latest.get("room") or "AIOS"
+    try:
+        notifier.telegram.send(f"👋 Test from AIOS: Telegram alerts for {room} are working.")
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    return {"sent": True}

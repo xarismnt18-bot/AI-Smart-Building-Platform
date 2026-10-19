@@ -1,6 +1,7 @@
 // ESP8266 + DHT11 -> MQTT sensor node for Smart Building AI OS.
 // Wi-Fi and broker settings live in secrets.h (not committed to git).
 #include <ESP8266WiFi.h>
+#include <WiFiUdp.h>
 #include <PubSubClient.h>
 #include <DHT.h>
 #include "secrets.h"
@@ -11,6 +12,16 @@
 const char* ROOM_NAME = "Bedroom";
 const unsigned long PUBLISH_INTERVAL_MS = 3000;   // DHT11 needs >= 1 s between reads
 const unsigned long MQTT_RETRY_MS = 3000;
+
+// Broker discovery: the AIOS backend broadcasts "AIOS-BROKER v1 port=1883" on
+// this UDP port. The board connects to whoever sent it, so a new IP on the PC
+// no longer breaks the sensor. MQTT_SERVER in secrets.h is only the first guess.
+const uint16_t DISCOVERY_PORT = 18831;
+const char* BEACON_PREFIX = "AIOS-BROKER v1";
+WiFiUDP discovery;
+IPAddress brokerIp;
+uint16_t brokerPort = MQTT_PORT;
+bool brokerDiscovered = false;
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -43,7 +54,7 @@ void ensureMqtt() {
   lastMqttAttempt = now;
 
   Serial.print("Connecting to MQTT ");
-  Serial.print(MQTT_SERVER);
+  if (brokerDiscovered) Serial.print(brokerIp); else Serial.print(MQTT_SERVER);
   Serial.print("...");
   if (client.connect(clientId.c_str(), MQTT_USER, MQTT_PASS)) {
     Serial.println(" connected!");
@@ -51,6 +62,37 @@ void ensureMqtt() {
     Serial.print(" failed, rc=");
     Serial.println(client.state());
   }
+}
+
+// Reads one pending beacon, if any. Switches broker when the PC's IP changed.
+void listenForBroker() {
+  int size = discovery.parsePacket();
+  if (size <= 0) return;
+
+  char buf[64];
+  int len = discovery.read(buf, sizeof(buf) - 1);
+  if (len <= 0) return;
+  buf[len] = '\0';
+  if (strncmp(buf, BEACON_PREFIX, strlen(BEACON_PREFIX)) != 0) return;
+
+  uint16_t port = MQTT_PORT;
+  const char* p = strstr(buf, "port=");
+  if (p) port = (uint16_t) atoi(p + 5);
+
+  IPAddress from = discovery.remoteIP();
+  if (brokerDiscovered && from == brokerIp && port == brokerPort) return;
+
+  brokerIp = from;
+  brokerPort = port;
+  brokerDiscovered = true;
+  Serial.print("Broker found at ");
+  Serial.print(brokerIp);
+  Serial.print(":");
+  Serial.println(brokerPort);
+
+  client.disconnect();
+  client.setServer(brokerIp, brokerPort);
+  lastMqttAttempt = 0;   // try the new address right away
 }
 
 void publishReading() {
@@ -85,10 +127,12 @@ void setup() {
   // Unique per board, so two nodes never kick each other off the broker.
   clientId = "ESP8266_DHT11_" + String(ESP.getChipId(), HEX);
   client.setServer(MQTT_SERVER, MQTT_PORT);
+  discovery.begin(DISCOVERY_PORT);
 }
 
 void loop() {
   connectToWiFi();   // returns immediately while connected
+  listenForBroker();
   ensureMqtt();
   client.loop();
 

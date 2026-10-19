@@ -4,7 +4,8 @@
 #define WIFI_SSID     "your-wifi-name"
 #define WIFI_PASSWORD "your-wifi-password"
 
-// IP of the PC running Mosquitto (not the ESP8266). Check with `ipconfig`.
+// IP of the PC running Mosquitto (not the ESP8266). Only a first guess:
+// the board also finds the PC automatically from the backend's discovery beacon.
 #define MQTT_SERVER   "192.168.1.23"
 #define MQTT_PORT     1883
 #define MQTT_TOPIC    "smartroom/dht11"

@@ -86,6 +86,8 @@ The sensor should publish JSON like `{"room": "Bedroom", "temperature": 23.4, "h
 
 **Windows:** double-click `Run_AIOS_v6.bat` (works from any folder location).
 
+**Start automatically:** run `install_autostart.bat` once. AIOS then starts hidden every time you sign in to Windows (logs in `logs/`), and an **AIOS Dashboard** shortcut appears on the desktop. `uninstall_autostart.bat` undoes it. `restart_aios.bat` restarts it in the background (e.g. after `setup_telegram.bat`).
+
 **Manually:**
 ```bash
 mosquitto                 # terminal 1
@@ -132,6 +134,8 @@ Malformed or out-of-range packets are ignored and counted (`invalid_packets`); t
 | `/predictions` | GET | Forecasts for temperature and humidity |
 | `/recommendations` | GET | Suggested actions |
 | `/config` | GET / PUT / DELETE | Read, update (partial JSON) or reset thresholds |
+| `/notifications` | GET | Whether Telegram alerts are set up |
+| `/notifications/test` | POST | Send a test message to Telegram |
 
 ## How predictions work
 
@@ -143,10 +147,12 @@ Set in `.env` (see `config.py` for the full list):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MQTT_BROKER` | `192.168.1.143` | MQTT broker IP |
+| `MQTT_BROKER` | `127.0.0.1` | Broker address as seen by the backend |
 | `MQTT_PORT` | `1883` | MQTT broker port |
 | `MQTT_TOPIC` | `smartroom/dht11` | Sensor topic |
 | `SENSOR_STALE_SEC` | `30` | Seconds without packets before the sensor counts as offline |
+| `DISCOVERY_ENABLED` / `DISCOVERY_PORT` | `true` / `18831` | Broadcast the broker's address so the ESP8266 finds it |
+| `NOTIFY_COOLDOWN_MIN` | `30` | Minimum minutes between two messages for the same alert |
 | `API_RELOAD` | `false` | Auto-reload backend on code changes |
 | `TEMP_HIGH` / `TEMP_LOW` | `27` / `18` | Initial temperature thresholds (°C) |
 | `HUMIDITY_HIGH` / `HUMIDITY_LOW` | `70` / `35` | Initial humidity thresholds (%) |
@@ -157,12 +163,19 @@ Thresholds changed from the Settings page are saved by the backend to `data/sett
 
 The sensor sketch lives in `firmware/esp8266_dht11/`. Copy `secrets.example.h` to `secrets.h` (git-ignored), set your Wi-Fi, the broker PC's LAN IP and the MQTT login, then upload with the Arduino IDE (board: NodeMCU 1.0). Libraries: PubSubClient, DHT sensor library.
 
+**The board finds the PC by itself.** The backend broadcasts `AIOS-BROKER v1 port=1883` on UDP 18831 every 3 s. The ESP8266 listens and connects to whichever PC sent it, so a new IP on the PC (another Wi-Fi, a DHCP change) doesn't break the sensor. `MQTT_SERVER` in `secrets.h` is just the first guess at boot.
+
+## Telegram alerts
+
+Run `setup_telegram.bat` and follow the prompts: create a bot with @BotFather, paste its token, press Start in the bot chat. The script stores the token and your chat id in `telegram.env` (git-ignored) and sends a test message. After a restart, the backend messages you when an alert starts or clears and when the sensor stops sending. A change must hold for two checks (~30 s) before it is reported, and the same alert repeats at most every `NOTIFY_COOLDOWN_MIN` minutes. Settings has a **Send test message** button.
+
 ## Security
 
 - **MQTT login.** Run `setup_security.bat` once (it asks for admin). It creates random passwords for `backend` and `esp8266`, turns off anonymous access in Mosquitto, and writes the logins to git-ignored files (`mqtt_credentials.env`, `firmware/.../secrets.h`). It also sets the home Wi-Fi to *Private* and limits the Mosquitto firewall rule to private networks, so the broker isn't exposed on public Wi-Fi.
 - **API is local-only.** The API has no login, so it listens on `127.0.0.1` and accepts browser calls only from the local dashboard (`CORS_ORIGINS`).
-- **No secrets in git.** `.env`, `mqtt_credentials.env`, `secrets.h`, `*.pkl` and data files are ignored. `tools/check_secrets.py` runs as a pre-commit hook and blocks commits that stage credentials or keys.
+- **No secrets in git.** `.env`, `mqtt_credentials.env`, `telegram.env`, `secrets.h`, `*.pkl` and data files are ignored. `tools/check_secrets.py` runs as a pre-commit hook and blocks commits that stage credentials or keys.
 - **Model files.** `.pkl` files can execute code when loaded, so they are not versioned; retrain locally with the scripts below instead of loading pickles from elsewhere.
+- **Discovery beacon.** Any device on the LAN could fake the beacon and make the ESP8266 try to log in to it. That needs someone already on your Wi-Fi; on a network you don't trust, set `DISCOVERY_ENABLED=false` and use a fixed `MQTT_SERVER`.
 - MQTT traffic on the LAN is not encrypted (the ESP8266 is too small for comfortable TLS); the password login stops other devices from reading or injecting data.
 
 ## Demo ML scripts

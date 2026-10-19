@@ -11,7 +11,7 @@ import sys
 
 # Files that must never be committed, whatever they contain.
 BLOCKED_NAMES = re.compile(
-    r"(^|/)(\.env(\..+)?|mqtt_credentials\.env|secrets\.h|.*\.pem|.*\.key|id_rsa.*|.*\.pkl)$",
+    r"(^|/)(\.env(\..+)?|mqtt_credentials\.env|telegram\.env|secrets\.h|.*\.pem|.*\.key|id_rsa.*|.*\.pkl)$",
     re.IGNORECASE,
 )
 ALLOWED_NAMES = re.compile(r"(^|/)(\.env\.example|secrets\.example\.h)$", re.IGNORECASE)
@@ -23,6 +23,7 @@ SECRET_PATTERNS = [
     ("AWS access key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
     ("Anthropic/OpenAI key", re.compile(r"\bsk-(ant-)?[A-Za-z0-9_-]{20,}")),
     ("Slack token", re.compile(r"\bxox[abpr]-[A-Za-z0-9-]{10,}")),
+    ("Telegram bot token", re.compile(r"\b\d{6,12}:AA[A-Za-z0-9_-]{30,}")),
     ("hard-coded password",
      re.compile(r"""(?i)\b(password|passwd|pwd|pass)\b["']?\s*[:=]\s*["'][^"'\s]{4,}["']""")),
     ("hard-coded password (#define)",

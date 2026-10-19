@@ -16,6 +16,8 @@ try:
     # MQTT username/password, generated on this PC by setup_security.bat.
     # Kept in its own git-ignored file so it never ends up in a commit.
     load_dotenv(os.path.join(BASE_DIR, "mqtt_credentials.env"))
+    # Telegram bot token + chat id, written by setup_telegram.bat (git-ignored).
+    load_dotenv(os.path.join(BASE_DIR, "telegram.env"))
 except ImportError:
     pass
 
@@ -37,6 +39,12 @@ MQTT_KEEPALIVE = 60
 # even if the broker connection itself is still up.
 SENSOR_STALE_SEC = int(os.getenv("SENSOR_STALE_SEC", "30"))
 
+# Broker discovery: the backend broadcasts "the broker is here" on the LAN every
+# few seconds, so the ESP8266 finds this PC even when its IP address changes.
+DISCOVERY_ENABLED = _env_bool("DISCOVERY_ENABLED", True)
+DISCOVERY_PORT = int(os.getenv("DISCOVERY_PORT", "18831"))
+DISCOVERY_INTERVAL_SEC = float(os.getenv("DISCOVERY_INTERVAL_SEC", "3"))
+
 
 # =========================
 # API / BACKEND
@@ -52,6 +60,16 @@ CORS_ORIGINS = [
     for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
     if o.strip()
 ]
+
+
+# =========================
+# TELEGRAM NOTIFICATIONS (optional; off until setup_telegram.bat has run)
+# =========================
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or None
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or None
+# The same alert is not repeated more often than this, even if it flaps.
+NOTIFY_COOLDOWN_MIN = int(os.getenv("NOTIFY_COOLDOWN_MIN", "30"))
+NOTIFY_CHECK_SEC = int(os.getenv("NOTIFY_CHECK_SEC", "15"))
 
 
 # =========================
