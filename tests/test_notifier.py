@@ -79,3 +79,38 @@ def test_lamp_follows_reported_alerts(setup):
     sensor.latest = reading(hum=80)
     n.check(); n.check()
     assert outlet.calls == [True]
+
+
+def test_restart_does_not_repeat_alerts(thresholds, tmp_path):
+    state = str(tmp_path / "alert_state.json")
+    sensor, telegram = FakeSensor(reading(hum=80)), FakeTelegram()
+
+    def notifier():
+        n = N.AlertNotifier(telegram, sensor, FakeSettings(thresholds), 15, 30, state_path=state)
+        n._started_at = time.monotonic() - N.STARTUP_GRACE_SEC - 1
+        return n
+
+    first = notifier()
+    first.check(); first.check()
+    assert len(telegram.sent) == 1
+    second = notifier()  # AIOS restarted, alert still active
+    for _ in range(4):
+        second.check()
+    assert len(telegram.sent) == 1
+    sensor.latest = reading(hum=60)
+    second.check(); second.check()
+    assert "back to normal" in telegram.sent[-1]
+
+
+def test_stuck_sensor_alert_is_text_only(thresholds, tmp_path):
+    from backend.history_store import HistoryStore
+
+    store = HistoryStore(str(tmp_path / "h.db"))
+    now = time.time()
+    for i in range(int(3.2 * 3600 / 30)):
+        store.record(reading(25 + i * 0.001, 95), ts=now - i * 30)
+    sensor, telegram = FakeSensor(reading(25, 95)), FakeTelegram()
+    n = N.AlertNotifier(telegram, sensor, FakeSettings(thresholds), 15, 30, history=store)
+    n._started_at = time.monotonic() - N.STARTUP_GRACE_SEC - 1
+    n.check(); n.check()
+    assert any("may be stuck" in m and "95%" in m for m in telegram.sent)

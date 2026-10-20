@@ -12,18 +12,22 @@ which setup_telegram.bat does.
 """
 import json
 import logging
+import os
 import threading
 import time
 import urllib.error
 import urllib.request
 
 from backend.alerts import active_alerts
+from backend.history_store import stuck_reading
 from backend.voice import spoken
 
 logger = logging.getLogger(__name__)
 
 STARTUP_GRACE_SEC = 60
 CONNECTIVITY_KEYS = {"broker_offline", "sensor_offline"}
+SILENT_KEYS = {"sensor_stuck"}  # Telegram only: not worth waking Alexa for
+REMEMBER_SEC = 24 * 3600  # alerts sent before a restart are not sent again for this long
 
 
 class TelegramClient:
@@ -43,6 +47,17 @@ class TelegramClient:
         """Raises RuntimeError with a readable reason if Telegram refuses."""
         self._call("sendMessage", {"chat_id": self._chat_id, "text": text}, timeout=10)
 
+    def send_photo(self, png: bytes, caption: str = "") -> None:
+        """Sends a PNG (multipart upload). Raises RuntimeError like send()."""
+        boundary = "aios" + os.urandom(8).hex()
+        parts = []
+        for name, value in (("chat_id", str(self._chat_id)), ("caption", caption[:1024])):
+            parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="photo"; filename="chart.png"\r\n'
+                     "Content-Type: image/png\r\n\r\n".encode() + png + b"\r\n")
+        parts.append(f"--{boundary}--\r\n".encode())
+        self._post("sendPhoto", b"".join(parts), f"multipart/form-data; boundary={boundary}", timeout=30)
+
     def get_updates(self, offset: int | None, timeout: int = 25) -> list[dict]:
         """Long-polls for new messages to the bot."""
         params = {"timeout": timeout, "allowed_updates": ["message"]}
@@ -51,11 +66,13 @@ class TelegramClient:
         return self._call("getUpdates", params, timeout=timeout + 10).get("result", [])
 
     def _call(self, method: str, params: dict, timeout: int) -> dict:
+        return self._post(method, json.dumps(params).encode("utf-8"), "application/json", timeout)
+
+    def _post(self, method: str, body: bytes, content_type: str, timeout: int) -> dict:
         if not self.enabled:
             raise RuntimeError("Telegram is not set up. Run setup_telegram.bat.")
         url = f"https://api.telegram.org/bot{self._token}/{method}"
-        body = json.dumps(params).encode("utf-8")
-        request = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+        request = urllib.request.Request(url, data=body, headers={"Content-Type": content_type})
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 result = json.load(response)
@@ -72,7 +89,7 @@ class TelegramClient:
         return result
 
 
-def describe(key: str, latest: dict, thresholds, resolved: bool) -> str:
+def describe(key: str, latest: dict, thresholds, resolved: bool, stuck: str | None = None) -> str:
     room = latest.get("room") or "Room"
     temp, hum = latest.get("temperature"), latest.get("humidity")
     t, h = (f"{temp:.1f}°C" if temp is not None else "--"), (f"{hum:.0f}%" if hum is not None else "--")
@@ -85,6 +102,7 @@ def describe(key: str, latest: dict, thresholds, resolved: bool) -> str:
             "temp_low": f"✅ {room}: temperature back to normal ({t}).",
             "humidity_high": f"✅ {room}: humidity back to normal ({h}).",
             "humidity_low": f"✅ {room}: humidity back to normal ({h}).",
+            "sensor_stuck": f"✅ {room} sensor readings are changing again.",
         }.get(key, f"✅ {room}: alert cleared.")
 
     age = latest.get("seconds_since_update")
@@ -97,11 +115,14 @@ def describe(key: str, latest: dict, thresholds, resolved: bool) -> str:
         "humidity_high": f"💧 {room} humidity is high: {h} (limit {thresholds.HUMIDITY_HIGH:g}%). "
                          "Mold risk rises; open a window or run the dehumidifier.",
         "humidity_low": f"🏜️ {room} air is dry: {h} (limit {thresholds.HUMIDITY_LOW:g}%).",
+        "sensor_stuck": f"🧐 {room} {stuck or 'sensor'} has not changed for hours. The sensor may be stuck "
+                        "(a DHT11 often sticks near 95% when damp): check it is dry and away from cold walls.",
     }.get(key, f"⚠️ {room}: {key}")
 
 
 class AlertNotifier:
-    def __init__(self, telegram: TelegramClient, sensor, settings, check_sec: int, cooldown_min: int, voice=None, lamp=None):
+    def __init__(self, telegram: TelegramClient, sensor, settings, check_sec: int, cooldown_min: int, voice=None, lamp=None,
+                 history=None, state_path: str | None = None):
         self.telegram = telegram
         self.voice = voice
         self.lamp = lamp
@@ -113,8 +134,13 @@ class AlertNotifier:
         self._reported: set[str] = set()      # alerts currently considered active
         self._notified: set[str] = set()      # active alerts whose message was sent
         self._pending: dict[str, int] = {}    # key -> consecutive checks the change held
-        self._last_sent: dict[str, float] = {}
+        self._last_sent: dict[str, float] = {}  # wall-clock time of the last message per alert
         self._muted_until = 0.0  # wall-clock time; alerts are not sent before it
+        self.history = history   # HistoryStore, for the stuck-sensor check
+        self.stuck: str | None = None  # e.g. "humidity at 95%" while the sensor looks stuck
+        self._stuck_checked_at = -1e9
+        self._state_path = state_path
+        self._load_state()
         self._stop = threading.Event()
         self._thread = None
 
@@ -151,6 +177,12 @@ class AlertNotifier:
         latest = self._sensor.latest
         thresholds = self._settings.thresholds
         current = {a.key for a in active_alerts(latest, thresholds)}
+        if self.history is not None:
+            if time.monotonic() - self._stuck_checked_at >= 60:
+                self.stuck = stuck_reading(self.history)
+                self._stuck_checked_at = time.monotonic()
+            if self.stuck:
+                current.add("sensor_stuck")
         if not latest.get("sensor_online"):
             # values are stale while the sensor is offline: keep value alerts as
             # they were and only track connectivity
@@ -176,19 +208,50 @@ class AlertNotifier:
 
     def _raise(self, key: str, latest: dict, thresholds) -> None:
         self._reported.add(key)
-        now = time.monotonic()
+        now = time.time()
         if now - self._last_sent.get(key, -self._cooldown_sec) < self._cooldown_sec:
             return
-        if self._send(describe(key, latest, thresholds, resolved=False)):
+        if self._send(describe(key, latest, thresholds, resolved=False, stuck=self.stuck)):
             self._last_sent[key] = now
             self._notified.add(key)
-            self._speak(key, spoken(key, latest, thresholds))
+            self._save_state()
+            if key not in SILENT_KEYS:
+                self._speak(key, spoken(key, latest, thresholds))
 
     def _clear(self, key: str, latest: dict, thresholds) -> None:
         self._reported.discard(key)
         if key in self._notified:  # only confirm alerts the user actually received
             self._notified.discard(key)
+            self._save_state()
             self._send(describe(key, latest, thresholds, resolved=True))
+
+    # ---------- remembered across restarts ----------
+    def _load_state(self) -> None:
+        """Alerts already sent before a restart count as reported, so a restart
+        doesn't repeat them; if they cleared meanwhile, "back to normal" follows."""
+        if not self._state_path:
+            return
+        try:
+            with open(self._state_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return
+        now = time.time()
+        self._last_sent = {k: float(t) for k, t in data.get("last_sent", {}).items() if now - float(t) < REMEMBER_SEC}
+        self._notified = {k for k in data.get("notified", []) if k in self._last_sent}
+        self._reported = set(self._notified)
+
+    def _save_state(self) -> None:
+        if not self._state_path:
+            return
+        try:
+            os.makedirs(os.path.dirname(self._state_path) or ".", exist_ok=True)
+            tmp = self._state_path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({"notified": sorted(self._notified), "last_sent": self._last_sent}, f)
+            os.replace(tmp, self._state_path)
+        except OSError as e:
+            logger.warning("Could not save alert state: %s", e)
 
     # ---------- mute (from the Telegram /mute command) ----------
     def mute(self, seconds: float) -> float:

@@ -20,6 +20,7 @@ from datetime import datetime
 from ai.engines import dew_point, health_score, mold_risk
 from backend.alerts import active_alerts
 from backend.daily_stats import DailyStats, format_day, yesterday
+from backend import charts
 from backend.history_store import format_night
 from backend.voice import status_sentence
 
@@ -113,8 +114,27 @@ class TelegramBot:
             except RuntimeError as e:
                 logger.warning("Daily summary not sent: %s", e)
                 return False
+            start = datetime.combine(day, datetime.min.time()).timestamp()
+            self.send_chart(start, start + 86400, f"{day:%a %d %b}")
         self._stats.mark_summary_sent(day)
         return bool(data)
+
+    def send_chart(self, since: float, until: float, label: str) -> bool:
+        """Sends a temperature/humidity chart from the stored history, if possible."""
+        if self._history is None:
+            return False
+        step = 300 if until - since <= 36 * 3600 else 1800
+        room = self._sensor.latest.get("room") or "Room"
+        png = charts.render(self._history.series(since, step, until), step, self._settings.thresholds,
+                            f"{room} · {label}")
+        if not png:
+            return False
+        try:
+            self.telegram.send_photo(png)
+        except (RuntimeError, AttributeError) as e:
+            logger.warning("Chart not sent: %s", e)
+            return False
+        return True
 
     # ---------- commands ----------
     def _command_loop(self) -> None:
@@ -159,6 +179,8 @@ class TelegramBot:
             if self._history is None:
                 return "History is not available."
             hours = int(arg) if arg.strip().isdigit() and 1 <= int(arg) <= 72 else 10
+            now = time.time()
+            self.send_chart(now - hours * 3600, now, f"last {hours} hours")
             return format_night(self._history, self._settings.thresholds, hours=hours)
         if command == "/mute":
             seconds = parse_duration(arg)
@@ -242,6 +264,8 @@ class TelegramBot:
         if trend and trend != "unknown" and predicted is not None:
             lines.append(f"Next {forecast['minutes_ahead']} min: {trend}, ~{predicted:.1f}°C")
         alerts = [a.message for a in active_alerts(latest, t)]
+        if self._notifier.stuck:
+            alerts.append(f"Sensor may be stuck ({self._notifier.stuck} for hours).")
         lines.append("⚠️ " + "\n⚠️ ".join(alerts) if alerts else "✅ No alerts.")
         lamp = self._notifier.lamp
         if lamp and lamp.lit_by_alert:

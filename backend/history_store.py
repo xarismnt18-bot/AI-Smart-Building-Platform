@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 SAMPLE_SEC = 30
 KEEP_DAYS = 30
+STUCK_HOURS = 3  # an unchanged reading for this long suggests a stuck sensor
 
 
 class HistoryStore:
@@ -90,6 +91,21 @@ class HistoryStore:
         for ts, room, temp, hum in self.rows(since, until):
             writer.writerow([datetime.fromtimestamp(ts).isoformat(timespec="seconds"), room, temp, hum])
         return out.getvalue()
+
+
+def stuck_reading(store: HistoryStore, now: float | None = None, hours: float = STUCK_HOURS) -> str | None:
+    """'humidity at 95%' if a value hasn't moved at all for `hours` of near-continuous
+    readings (a DHT11 tends to stick near 95% when damp), else None."""
+    now = now or time.time()
+    rows = store.rows(now - hours * 3600, now)
+    if len(rows) < 0.8 * hours * 3600 / SAMPLE_SEC:
+        return None  # too many gaps to judge
+    hums, temps = {r[3] for r in rows}, {r[2] for r in rows}
+    if len(hums) == 1:
+        return f"humidity at {hums.pop():.0f}%"
+    if len(temps) == 1:
+        return f"temperature at {temps.pop():.1f}°C"
+    return None
 
 
 def format_night(store: HistoryStore, thresholds, now: datetime | None = None, hours: int = 10) -> str:

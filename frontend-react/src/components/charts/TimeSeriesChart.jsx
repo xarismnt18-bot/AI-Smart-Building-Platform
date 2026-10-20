@@ -35,6 +35,14 @@ function formatClock(ts, withSeconds = false) {
   });
 }
 
+function formatDay(ts) {
+  return new Date(ts * 1000).toLocaleDateString([], { weekday: "short", day: "numeric" });
+}
+
+function formatMoment(ts, longRange, withSeconds) {
+  return longRange ? `${formatDay(ts)} ${formatClock(ts)}` : formatClock(ts, withSeconds);
+}
+
 function nearestIndex(points, ts) {
   let lo = 0;
   let hi = points.length - 1;
@@ -52,7 +60,7 @@ function nearestIndex(points, ts) {
  * `hoverTs` / `onHover` let several charts share one crosshair.
  */
 export default function TimeSeriesChart({
-  title, unit, color, points, band, hoverTs, onHover, decimals = 1,
+  title, unit, color, points, band, hoverTs, onHover, decimals = 1, gapSec = Infinity, longRange = false,
 }) {
   const [frameRef, width] = useElementWidth();
   const innerW = Math.max(width - MARGIN.left - MARGIN.right, 10);
@@ -65,10 +73,15 @@ export default function TimeSeriesChart({
     const { lo, hi, ticks } = yDomain(points.map((p) => p.value), band);
     const x = (ts) => ((ts - t0) / (t1 - t0 || 1)) * innerW;
     const y = (v) => innerH - ((v - lo) / (hi - lo || 1)) * innerH;
-    const path = points.map((p, i) => `${i ? "L" : "M"}${x(p.ts).toFixed(1)},${y(p.value).toFixed(1)}`).join("");
-    const timeTicks = Array.from({ length: 5 }, (_, i) => t0 + ((t1 - t0) * i) / 4);
+    // a pause longer than gapSec (sensor or PC off) breaks the line instead of bridging it
+    const path = points.map((p, i) => {
+      const move = i === 0 || p.ts - points[i - 1].ts > gapSec;
+      return `${move ? "M" : "L"}${x(p.ts).toFixed(1)},${y(p.value).toFixed(1)}`;
+    }).join("");
+    const tickCount = innerW < 360 ? 3 : 5; // fewer labels on a phone so they don't overlap
+    const timeTicks = Array.from({ length: tickCount }, (_, i) => t0 + ((t1 - t0) * i) / (tickCount - 1));
     return { t0, t1, lo, hi, ticks, x, y, path, timeTicks };
-  }, [points, band, innerW, innerH]);
+  }, [points, band, innerW, innerH, gapSec]);
 
   const hovered = geometry && hoverTs != null && hoverTs >= geometry.t0 && hoverTs <= geometry.t1
     ? points[nearestIndex(points, hoverTs)]
@@ -106,7 +119,7 @@ export default function TimeSeriesChart({
         <p className="ts-chart__value">
           {hovered ? hovered.value.toFixed(decimals) : last ? last.value.toFixed(decimals) : "--"}
           <span>{unit}</span>
-          <small>{hovered ? formatClock(hovered.ts, true) : "latest"}</small>
+          <small>{hovered ? formatMoment(hovered.ts, longRange, true) : "latest"}</small>
         </p>
       </figcaption>
 
@@ -147,9 +160,9 @@ export default function TimeSeriesChart({
                   className="ts-chart__axis"
                   x={geometry.x(t)}
                   y={innerH + 20}
-                  textAnchor={i === 0 ? "start" : i === 4 ? "end" : "middle"}
+                  textAnchor={i === 0 ? "start" : i === geometry.timeTicks.length - 1 ? "end" : "middle"}
                 >
-                  {formatClock(t)}
+                  {longRange ? formatDay(t) : formatClock(t)}
                 </text>
               ))}
 
@@ -182,7 +195,7 @@ export default function TimeSeriesChart({
             <thead><tr><th scope="col">Time</th><th scope="col">{title} ({unit.trim()})</th></tr></thead>
             <tbody>
               {points.slice(-30).reverse().map((p) => (
-                <tr key={p.ts}><td>{formatClock(p.ts, true)}</td><td>{p.value.toFixed(decimals)}</td></tr>
+                <tr key={p.ts}><td>{formatMoment(p.ts, longRange, true)}</td><td>{p.value.toFixed(decimals)}</td></tr>
               ))}
             </tbody>
           </table>

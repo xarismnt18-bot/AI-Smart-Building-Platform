@@ -20,6 +20,7 @@ models/*.pkl
 data/settings.json
 data/daily_stats.json
 data/history.db
+data/alert_state.json
 
 # ESP8266 Wi-Fi credentials
 firmware/**/secrets.h

@@ -181,7 +181,7 @@ The sensor sketch lives in `firmware/esp8266_dht11/`. Copy `secrets.example.h` t
 
 ## Telegram alerts
 
-Run `setup_telegram.bat` and follow the prompts: create a bot with @BotFather, paste its token, press Start in the bot chat. The script stores the token and your chat id in `telegram.env` (git-ignored) and sends a test message. After a restart, the backend messages you when an alert starts or clears and when the sensor stops sending. A change must hold for two checks (~30 s) before it is reported, and the same alert repeats at most every `NOTIFY_COOLDOWN_MIN` minutes. Settings has a **Send test message** button.
+Run `setup_telegram.bat` and follow the prompts: create a bot with @BotFather, paste its token, press Start in the bot chat. The script stores the token and your chat id in `telegram.env` (git-ignored) and sends a test message. After a restart, the backend messages you when an alert starts or clears and when the sensor stops sending. A change must hold for two checks (~30 s) before it is reported, and the same alert repeats at most every `NOTIFY_COOLDOWN_MIN` minutes. Alerts already sent are remembered in `data/alert_state.json` (24 h), so restarting AIOS doesn't send them again. Settings has a **Send test message** button.
 
 The bot also answers commands (only from your chat):
 
@@ -192,7 +192,7 @@ The bot also answers commands (only from your chat):
 | `/mute 2h` | Pause alert messages (`30m`, `2h`, `1d`; default 1 hour) |
 | `/unmute` | Resume alert messages |
 
-Every morning at `DAILY_SUMMARY_TIME` (09:00) it sends yesterday's summary: temperature and humidity range, and how long each limit was crossed. The day's totals are kept in `data/daily_stats.json`, so a restart doesn't lose them.
+Every morning at `DAILY_SUMMARY_TIME` (09:00) it sends yesterday's summary with a chart: temperature and humidity range, and how long each limit was crossed. The day's totals are kept in `data/daily_stats.json`, so a restart doesn't lose them.
 
 ## Alert lamp (IKEA smart plug)
 
@@ -200,7 +200,12 @@ A lamp on an IKEA smart plug lights up while a temperature or humidity alert is 
 
 ## History
 
-The backend stores the live reading every 30 seconds in `data/history.db` (SQLite, git-ignored) and keeps 30 days; nothing is stored while the sensor is offline, so gaps show when it was off. Telegram `/night` lists the last 10 hours hour by hour (`/night 24` for a day), flagging hours that crossed a limit. API: `GET /history/range?hours=12&step=300` (averages for charts) and `GET /history.csv?hours=24` (every reading, as a download; from the phone via Tailscale at `https://<pc>.ts.net/api/history.csv?hours=12`).
+The backend stores the live reading every 30 seconds in `data/history.db` (SQLite, git-ignored) and keeps 30 days; nothing is stored while the sensor is offline, so gaps show when it was off.
+
+- **Dashboard → Analytics:** live hour, 24 hours, 7 days or 30 days; gaps are left empty instead of being bridged.
+- **Telegram:** `/night` sends a chart and an hour-by-hour list of the last 10 hours (`/night 24` for a day), flagging hours that crossed a limit. The 09:00 summary comes with a chart of yesterday. Charts need `matplotlib` (in `requirements.txt`).
+- **Stuck sensor:** if humidity or temperature hasn't changed at all for 3 hours of continuous readings, Telegram warns that the sensor may be stuck (a damp DHT11 tends to sit at ~95%), and `/status`, `/alerts` show it.
+- **API:** `GET /history/range?hours=12&step=300` (averages for charts) and `GET /history.csv?hours=24` (every reading, as a download; from the phone via Tailscale at `https://<pc>.ts.net/api/history.csv?hours=12`).
 
 ## Tests
 

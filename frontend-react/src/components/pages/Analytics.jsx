@@ -1,25 +1,42 @@
 import { useMemo, useState } from "react";
 import { THRESHOLDS } from "../../config";
+import { useStoredHistory } from "../../hooks/useStoredHistory";
 import { lastSeconds, toSeries } from "../../lib/series";
 import TimeSeriesChart from "../charts/TimeSeriesChart";
 import AnimatedNumber from "../ui/AnimatedNumber";
 
+// [label, seconds, bucket size]; the live range uses the in-memory packets,
+// the others the readings the backend stores every 30 s (kept 30 days).
 const RANGES = [
-  ["15 min", 15 * 60],
-  ["1 hour", 60 * 60],
-  ["6 hours", 6 * 60 * 60],
-  ["All", null],
+  { label: "Live hour", seconds: 3600, step: null },
+  { label: "24 hours", seconds: 24 * 3600, step: 300 },
+  { label: "7 days", seconds: 7 * 24 * 3600, step: 1800 },
+  { label: "30 days", seconds: 30 * 24 * 3600, step: 7200 },
 ];
 const TEMP_COLOR = "#f97316";
 const HUM_COLOR = "#22d3ee";
 
 export default function Analytics({ telemetry, room }) {
   const { history, healthInfo } = telemetry;
-  const [range, setRange] = useState(RANGES[1][1]);
+  const [range, setRange] = useState(RANGES[1]);
   const [hoverTs, setHoverTs] = useState(null);
+  const live = range.step === null;
+  const stored = useStoredHistory(live ? null : range.seconds, range.step);
 
-  const temps = useMemo(() => lastSeconds(toSeries(history, "temperature"), range), [history, range]);
-  const hums = useMemo(() => lastSeconds(toSeries(history, "humidity"), range), [history, range]);
+  const source = live ? history : stored.points;
+  const liveWindow = live ? range.seconds : null;
+  const temps = useMemo(() => lastSeconds(toSeries(source, "temperature"), liveWindow), [source, liveWindow]);
+  const hums = useMemo(() => lastSeconds(toSeries(source, "humidity"), liveWindow), [source, liveWindow]);
+  const chartProps = {
+    hoverTs, onHover: setHoverTs,
+    gapSec: live ? 60 : range.step * 3,
+    longRange: range.seconds > 2 * 24 * 3600,
+  };
+  const note = live
+    ? `${temps.length} live packets from the last hour`
+    : stored.error
+      ? `Stored history unavailable: ${stored.error}`
+      : `${temps.length} points, ${range.step / 60}-minute averages of the readings stored every 30 s`;
 
   return (
     <div className="module-page">
@@ -27,18 +44,18 @@ export default function Analytics({ telemetry, room }) {
       <p className="module-subtitle">{room} telemetry. Hover or use the arrow keys on a chart to inspect a moment.</p>
 
       <div className="range-filter" role="group" aria-label="Time range">
-        {RANGES.map(([label, seconds]) => (
+        {RANGES.map((r) => (
           <button
-            key={label}
+            key={r.label}
             type="button"
-            className={range === seconds ? "active" : ""}
-            aria-pressed={range === seconds}
-            onClick={() => setRange(seconds)}
+            className={range === r ? "active" : ""}
+            aria-pressed={range === r}
+            onClick={() => setRange(r)}
           >
-            {label}
+            {r.label}
           </button>
         ))}
-        <span className="range-filter__note">{temps.length} readings kept in memory (restart clears them)</span>
+        <span className="range-filter__note">{note}</span>
       </div>
 
       <div className="analytics-grid">
@@ -49,8 +66,7 @@ export default function Analytics({ telemetry, room }) {
             color={TEMP_COLOR}
             points={temps}
             band={{ low: THRESHOLDS.TEMP_LOW, high: THRESHOLDS.TEMP_HIGH }}
-            hoverTs={hoverTs}
-            onHover={setHoverTs}
+            {...chartProps}
           />
         </div>
         <div className="module-card">
@@ -60,8 +76,7 @@ export default function Analytics({ telemetry, room }) {
             color={HUM_COLOR}
             points={hums}
             band={{ low: THRESHOLDS.HUMIDITY_LOW, high: THRESHOLDS.HUMIDITY_HIGH }}
-            hoverTs={hoverTs}
-            onHover={setHoverTs}
+            {...chartProps}
           />
         </div>
         <div className="module-card analytics-health">

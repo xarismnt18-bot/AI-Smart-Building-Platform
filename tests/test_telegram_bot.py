@@ -52,3 +52,17 @@ def test_lamp_commands(bot):
 def test_unknown_command_and_plain_text(bot):
     assert bot.handle("/nope").startswith("I don't know")
     assert bot.handle("hello") is None
+
+
+def test_night_sends_chart_and_text(bot, tmp_path):
+    import time
+    from backend.history_store import HistoryStore
+    store = HistoryStore(str(tmp_path / "n.db"))
+    now = time.time()
+    for i in range(240):
+        store.record(reading(24, 70 + i % 3), ts=now - i * 30)
+    bot._history = store
+    text = bot.handle("/night 2")
+    assert text.startswith("🌙 Last 2 hours")
+    photos = [m for m in bot.telegram.sent if isinstance(m, tuple)]
+    assert len(photos) == 1 or __import__("importlib").util.find_spec("matplotlib") is None

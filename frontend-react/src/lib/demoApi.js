@@ -171,6 +171,18 @@ export async function demoRequest(path, options = {}) {
     return config();
   }
   if (route === "/notifications") return { telegram_enabled: false, muted_until: null };
+  if (route === "/history/range") {
+    const params = new URLSearchParams(path.split("?")[1] || "");
+    const hours = Number(params.get("hours")) || 24;
+    const step = Number(params.get("step")) || 300;
+    const end = Math.floor(Date.now() / 1000 / step) * step;
+    const out = [];
+    for (let ts = end - hours * 3600; ts <= end; ts += step) {
+      const day = Math.sin(((ts % 86400) / 86400) * 2 * Math.PI - 2);  // warmer afternoons
+      out.push({ ts, temperature: +(22.5 + 2.2 * day).toFixed(2), humidity: +(62 - 9 * day + 4 * Math.sin(ts / 9000)).toFixed(1) });
+    }
+    return out;
+  }
   if (route === "/lamp") {
     if (method === "POST") throw new Error("The lamp isn't available in the online demo.");
     return { enabled: false, auto: true, lit_by_alert: false, quiet_hours: "23:00-08:00" };

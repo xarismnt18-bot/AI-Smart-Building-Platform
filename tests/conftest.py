@@ -43,6 +43,9 @@ class FakeTelegram:
     def send(self, text):
         self.sent.append(text)
 
+    def send_photo(self, png, caption=""):
+        self.sent.append(("photo", png))
+
 
 class FakeOutlet:
     enabled = True

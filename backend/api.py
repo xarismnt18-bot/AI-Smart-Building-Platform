@@ -15,7 +15,7 @@ from config import (  # noqa: E402
     PREDICTION_MINUTES_AHEAD, PREDICTION_LOOKBACK_MIN, SENSOR_STALE_SEC,
     MQTT_PORT, DISCOVERY_ENABLED, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC,
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN,
-    DAILY_SUMMARY_TIME, STATS_FILE, HISTORY_DB,
+    DAILY_SUMMARY_TIME, STATS_FILE, HISTORY_DB, ALERT_STATE_FILE,
     VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS, VOICE_STATUS_VAR, VOICE_STATUS_SEC, VOICE_STATUS_ENABLED,
     IKEA_HUB_IP, IKEA_TOKEN, IKEA_OUTLET_ID, LAMP_QUIET_HOURS,
 )
@@ -44,9 +44,10 @@ beacon = BrokerBeacon(MQTT_PORT, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC)
 telegram = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
 voice = VoiceAnnouncer(VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS)
 lamp = AlertLamp(IkeaOutlet(IKEA_HUB_IP, IKEA_TOKEN, IKEA_OUTLET_ID), LAMP_QUIET_HOURS)
-notifier = AlertNotifier(telegram, sensor, settings, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN, voice=voice, lamp=lamp)
-voice_status = VoiceStatusPublisher(voice, sensor, settings, VOICE_STATUS_VAR, VOICE_STATUS_SEC)
 history_store = HistoryStore(HISTORY_DB)
+notifier = AlertNotifier(telegram, sensor, settings, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN, voice=voice, lamp=lamp,
+                         history=history_store, state_path=ALERT_STATE_FILE)
+voice_status = VoiceStatusPublisher(voice, sensor, settings, VOICE_STATUS_VAR, VOICE_STATUS_SEC)
 bot = TelegramBot(telegram, notifier, sensor, settings, predictor, DailyStats(STATS_FILE), DAILY_SUMMARY_TIME,
                   history=history_store)
 
@@ -151,6 +152,8 @@ def get_health():
 @app.get("/alerts")
 def get_alerts():
     alerts = [a.message for a in active_alerts(sensor.latest, settings.thresholds)]
+    if notifier.stuck:
+        alerts.append(f"Sensor may be stuck: {notifier.stuck} for hours.")
     return {"alerts": alerts or ["No active alerts."]}
 
 
