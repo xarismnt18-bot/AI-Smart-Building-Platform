@@ -21,6 +21,7 @@ data/settings.json
 data/daily_stats.json
 data/history.db
 data/alert_state.json
+data/preferences.json
 
 # ESP8266 Wi-Fi credentials
 firmware/**/secrets.h
@@ -43,3 +44,6 @@ ikea.env
 # arduino-cli build output
 firmware/build/
 flash_esp.log
+
+# serial_log.bat output
+serial_log.txt
