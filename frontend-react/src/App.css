@@ -1881,3 +1881,29 @@ body { background: var(--bg); font-family: Manrope, system-ui, sans-serif; }
   .alert-module h3 { font-size: 16px; }
   .alert-module p { font-size: 14px; }
 }
+
+/* v6.17: Thαlpoς wordmark and author credit */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.brand__mark { flex: 0 0 auto; color: #38BDF8; }
+.brand h1.brand__name {
+  font-family: Manrope, system-ui, sans-serif; font-weight: 800; font-size: 26px; line-height: 1;
+  letter-spacing: -.01em; color: var(--ink);
+}
+.brand__name em { font-style: normal; color: #F59E0B; }
+.brand p { letter-spacing: .02em; }
+.system__author {
+  display: flex; align-items: center; gap: 8px; min-height: 36px; margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid rgba(148, 163, 184, .18); color: var(--ink-2); font-size: 12px; text-decoration: none;
+}
+.system__author svg { flex: 0 0 auto; color: #0A66C2; background: #fff; border-radius: 3px; padding: 1px; box-sizing: content-box; }
+.system__author b { color: var(--ink); font-weight: 700; }
+.system__author:hover b { color: var(--cyan); text-decoration: underline; }
+.system__author:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; border-radius: 4px; }
+@media (max-width: 767.98px) {
+  .mobile-bar .brand h1.brand__name { font-size: 22px; }
+  .mobile-bar .brand .brand__mark { width: 30px; height: 30px; }
+  .mobile-bar .brand p { font-size: 11px; margin-top: 2px; }
+}

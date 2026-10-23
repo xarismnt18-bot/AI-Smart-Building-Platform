@@ -33,7 +33,7 @@ export default function TelegramCard({ apiOnline }) {
       {enabled === null && <p className="telegram-card__text">Status unknown: backend unreachable.</p>}
       {enabled === false && (
         <p className="telegram-card__text">
-          Off. Run <code>setup_telegram.bat</code> in the project folder, then restart AIOS.
+          Off. Run <code>setup_telegram.bat</code> in the project folder, then restart Thalpos.
         </p>
       )}
       {enabled && (

@@ -40,8 +40,8 @@ export default function App() {
 
   return (
     <div className="app">
-      <MobileBar room={room} open={navOpen} onToggle={() => setNavOpen((o) => !o)} status={status} />
-      <Sidebar active={active} onNavigate={navigate} room={room} status={status} open={navOpen} />
+      <MobileBar open={navOpen} onToggle={() => setNavOpen((o) => !o)} status={status} />
+      <Sidebar active={active} onNavigate={navigate} status={status} open={navOpen} />
 
       <main className={active === "DASHBOARD" ? "main main--immersive" : "main"} key={active}>
         {active === "DASHBOARD" && <Dashboard telemetry={telemetry} room={room} />}

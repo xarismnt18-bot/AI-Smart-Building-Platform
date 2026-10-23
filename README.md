@@ -1,6 +1,6 @@
-# Smart Building AI Platform
+# Thαlpoς (Thalpos)
 
-Real-time IoT monitoring for a room. An ESP8266 with a DHT11 sensor publishes temperature and humidity over MQTT. A FastAPI backend validates and stores the readings, computes health, mold risk, short-term forecasts and recommendations. A React dashboard shows it all live as a 3D digital twin, and a Telegram bot keeps you posted.
+*θάλπος: warmth, comfort.* Thalpos is a smart room monitor: real-time IoT monitoring for a room. An ESP8266 with a DHT11 sensor publishes temperature and humidity over MQTT. A FastAPI backend validates and stores the readings, computes health, mold risk, short-term forecasts and recommendations. A React dashboard shows it all live as a 3D digital twin, and a Telegram bot keeps you posted.
 
 **[Live demo](https://xarismnt18-bot.github.io/AI-Smart-Building-Platform/)**: the real dashboard with a simulated sensor running in your browser, no install needed.
 
@@ -272,3 +272,8 @@ python ai/anomaly_detection.py
 ## License
 
 MIT
+
+## Author
+
+Built by **Charalampos Mentsios**.
+[LinkedIn](https://www.linkedin.com/in/charalampos-mentsios/) · [GitHub](https://github.com/xarismnt18-bot)

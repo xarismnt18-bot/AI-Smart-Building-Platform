@@ -11,6 +11,8 @@ const STORAGE_KEY = "smartbuilding_settings";
 // Public demo build (GitHub Pages): no backend, a simulated sensor in the browser.
 export const DEMO = import.meta.env.VITE_DEMO === "1";
 export const REPO_URL = "https://github.com/xarismnt18-bot/AI-Smart-Building-Platform";
+export const APP_NAME = "Thalpos";
+export const AUTHOR = { name: "Charalampos Mentsios", linkedin: "https://www.linkedin.com/in/charalampos-mentsios/" };
 
 const clientDefaults = {
   // same-origin path, proxied to the backend by the Vite dev server

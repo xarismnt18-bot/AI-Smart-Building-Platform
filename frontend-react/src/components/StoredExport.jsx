@@ -19,7 +19,7 @@ export default function StoredExport() {
       <h3 id="se-title">DOWNLOAD STORED READINGS (CSV)</h3>
       <p className="se-text">
         {DEMO
-          ? "Available on your own AIOS install: the online demo has no stored history."
+          ? "Available on your own Thalpos install: the online demo has no stored history."
           : "One reading every 30 seconds, kept for 30 days. Opens in Excel or Google Sheets."}
       </p>
       <div className="se-actions">

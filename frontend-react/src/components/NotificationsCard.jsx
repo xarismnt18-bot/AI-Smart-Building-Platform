@@ -53,7 +53,7 @@ export default function NotificationsCard({ apiOnline }) {
     return (
       <div className="module-card nc">
         <h3>ALERTS & QUIET HOURS</h3>
-        <p className="nc-text">{apiOnline ? "Loading…" : "Backend unreachable: start AIOS to change these."}</p>
+        <p className="nc-text">{apiOnline ? "Loading…" : "Backend unreachable: start Thalpos to change these."}</p>
       </div>
     );
   }
