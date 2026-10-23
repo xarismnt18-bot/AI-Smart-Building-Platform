@@ -45,7 +45,7 @@ function PauseRow({ mutedUntil, busy, onPause, onResume }) {
   );
 }
 
-/** Settings page: pause alerts, Alexa and lamp on/off and their quiet hours. */
+/** Settings page: pause alerts; Alexa, lamp and enter/leave messages on/off with their quiet hours. */
 export default function NotificationsCard({ apiOnline }) {
   const n = useNotificationSettings(apiOnline);
 
@@ -97,9 +97,27 @@ export default function NotificationsCard({ apiOnline }) {
             <p className="nc-text">Not set up (needs an IKEA hub and <code>setup_ikea.bat</code>).</p>
           )}
         </div>
+
+        {server.presence_on !== undefined && (
+          <div className="nc-block">
+            <h4>Someone enters or leaves</h4>
+            {server.telegram_enabled ? (
+              <>
+                <label className="nc-check">
+                  <input type="checkbox" checked={form.presence_on} onChange={(e) => n.edit("presence_on", e.target.checked)} />
+                  Telegram message when someone comes in or the room is empty
+                </label>
+                <QuietHours id="presence" value={form.presence} disabled={!form.presence_on}
+                  onChange={(part, v) => n.editHours("presence", part, v)} />
+              </>
+            ) : (
+              <p className="nc-text">Not set up. Run <code>setup_telegram.bat</code> on the PC.</p>
+            )}
+          </div>
+        )}
       </div>
 
-      {(server.voice_enabled || server.lamp_enabled) && (
+      {(server.voice_enabled || server.lamp_enabled || server.telegram_enabled) && (
         <div className="nc-actions">
           <button type="button" className="export-btn" onClick={n.save} disabled={n.busy || !apiOnline}>
             {n.busy ? "Saving…" : "Save alert settings"}

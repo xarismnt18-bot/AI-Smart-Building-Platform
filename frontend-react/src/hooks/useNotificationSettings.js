@@ -14,6 +14,8 @@ function toForm(json) {
     voice: splitHours(json.voice_quiet_hours),
     lamp_auto: json.lamp_auto,
     lamp: splitHours(json.lamp_quiet_hours),
+    presence_on: json.presence_on,
+    presence: splitHours(json.presence_quiet_hours),
   };
 }
 
@@ -56,6 +58,10 @@ export function useNotificationSettings(apiOnline) {
       voice_quiet_hours: joinHours(form.voice),
       lamp_auto: form.lamp_auto,
       lamp_quiet_hours: joinHours(form.lamp),
+      ...(server.presence_on !== undefined && {
+        presence_on: form.presence_on,
+        presence_quiet_hours: joinHours(form.presence),
+      }),
     }), () => "Saved. The new quiet hours apply from now on.");
     if (json) setForm(toForm(json));
   };

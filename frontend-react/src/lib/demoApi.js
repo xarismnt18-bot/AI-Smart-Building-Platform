@@ -137,6 +137,10 @@ function latest() {
     sensor_online: true,
     connected: true,
     invalid_packets: 0,
+    sensor: "SHT31",
+    // someone is in the room for 4 minutes out of every 6
+    presence: ((Date.now() - startedAt) / 1000) % 360 < 240,
+    device: { fw: "3.0", wifi: "Home", rssi: -58, ip: "192.168.1.20" },
   };
 }
 

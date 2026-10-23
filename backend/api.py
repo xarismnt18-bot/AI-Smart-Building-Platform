@@ -34,6 +34,7 @@ from backend.voice import VoiceAnnouncer, VoiceStatusPublisher  # noqa: E402
 from backend.ikea import AlertLamp, IkeaOutlet  # noqa: E402
 from backend.history_store import HistoryStore  # noqa: E402
 from backend.preferences import Preferences  # noqa: E402
+from backend.presence import PresenceWatcher  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +46,11 @@ beacon = BrokerBeacon(MQTT_PORT, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC)
 telegram = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
 voice = VoiceAnnouncer(VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS)
 lamp = AlertLamp(IkeaOutlet(IKEA_HUB_IP, IKEA_TOKEN, IKEA_OUTLET_ID), LAMP_QUIET_HOURS)
-preferences = Preferences(PREFERENCES_FILE, voice, lamp)
 history_store = HistoryStore(HISTORY_DB)
 notifier = AlertNotifier(telegram, sensor, settings, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN, voice=voice, lamp=lamp,
                          history=history_store, state_path=ALERT_STATE_FILE)
+presence = PresenceWatcher(telegram, sensor, notifier)
+preferences = Preferences(PREFERENCES_FILE, voice, lamp, presence)
 voice_status = VoiceStatusPublisher(voice, sensor, settings, VOICE_STATUS_VAR, VOICE_STATUS_SEC)
 bot = TelegramBot(telegram, notifier, sensor, settings, predictor, DailyStats(STATS_FILE), DAILY_SUMMARY_TIME,
                   history=history_store, preferences=preferences)
@@ -61,6 +63,7 @@ async def lifespan(app: FastAPI):
     if DISCOVERY_ENABLED:
         beacon.start()
     notifier.start()
+    presence.start()
     bot.start()
     if VOICE_STATUS_ENABLED:
         voice_status.start()
@@ -69,13 +72,14 @@ async def lifespan(app: FastAPI):
     yield
     voice_status.stop()
     bot.stop()
+    presence.stop()
     notifier.stop()
     beacon.stop()
     history_store.stop()
     sensor.stop()
 
 
-app = FastAPI(title="Smart Building AI OS API", version="6.15.0", lifespan=lifespan)
+app = FastAPI(title="Smart Building AI OS API", version="6.18.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -218,7 +222,8 @@ def get_notifications():
 
 @app.put("/notifications")
 def put_notifications(changes: dict):
-    """Change voice_on, voice_quiet_hours, lamp_auto or lamp_quiet_hours (saved across restarts)."""
+    """Change voice_on, voice_quiet_hours, lamp_auto, lamp_quiet_hours, presence_on or
+    presence_quiet_hours (saved across restarts)."""
     try:
         preferences.update(changes)
     except ValueError as e:

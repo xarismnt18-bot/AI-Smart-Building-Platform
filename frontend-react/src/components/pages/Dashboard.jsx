@@ -61,6 +61,7 @@ export default function Dashboard({ telemetry, room }) {
         status={status}
         reduced={reduced}
         narrow={narrow}
+        presence={hasData && latest.presence === true}
       />
       <ImmersiveHud
         room={room}

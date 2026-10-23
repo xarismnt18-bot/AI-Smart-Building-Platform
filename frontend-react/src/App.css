@@ -1907,3 +1907,9 @@ body { background: var(--bg); font-family: Manrope, system-ui, sans-serif; }
   .mobile-bar .brand .brand__mark { width: 30px; height: 30px; }
   .mobile-bar .brand p { font-size: 11px; margin-top: 2px; }
 }
+
+/* v6.18: presence from the mmWave radar */
+.imm-presence { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin: 2px 0 4px !important; }
+.imm-presence span { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--muted); }
+.imm-presence.is-in { color: var(--ink); }
+.imm-presence.is-in span { background: #34D399; border-color: #34D399; }

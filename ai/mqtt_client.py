@@ -37,7 +37,11 @@ class InvalidPacket(ValueError):
 
 
 def parse_payload(raw: bytes | str) -> dict:
-    """Validate a sensor payload and return {room, temperature, humidity}."""
+    """Validate a sensor payload and return {room, temperature, humidity, ...}.
+
+    Optional fields from firmware 2.0+/3.0+ are passed through when present:
+    presence (bool, mmWave radar), sensor ("SHT31"/"DHT11"), fw, wifi, rssi, ip.
+    """
     try:
         payload = json.loads(raw)
         temperature = float(payload["temperature"])
@@ -50,11 +54,19 @@ def parse_payload(raw: bytes | str) -> dict:
     if not HUMIDITY_RANGE[0] <= humidity <= HUMIDITY_RANGE[1]:
         raise InvalidPacket(f"humidity out of range: {humidity}")
 
-    return {
+    reading = {
         "room": str(payload.get("room") or DEFAULT_ROOM),
         "temperature": round(temperature, 1),
         "humidity": round(humidity, 1),
     }
+    if isinstance(payload.get("presence"), bool):
+        reading["presence"] = payload["presence"]
+    for key in ("sensor", "fw", "wifi", "ip"):
+        if isinstance(payload.get(key), str) and payload[key]:
+            reading[key] = payload[key][:40]
+    if isinstance(payload.get("rssi"), (int, float)):
+        reading["rssi"] = int(payload["rssi"])
+    return reading
 
 
 class SharedMQTTClient:
@@ -106,6 +118,10 @@ class SharedMQTTClient:
             "sensor_online": sensor_online,
             "connected": broker_connected and sensor_online,
             "invalid_packets": invalid,
+            # None when the board has no radar (or runs older firmware)
+            "presence": reading.get("presence") if reading and sensor_online else None,
+            "sensor": reading.get("sensor", "DHT11") if reading else None,
+            "device": {k: reading[k] for k in ("fw", "wifi", "rssi", "ip") if k in reading} if reading else {},
         }
 
     def history(self, limit: int | None = None) -> list[dict]:

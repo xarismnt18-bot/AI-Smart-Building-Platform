@@ -1,6 +1,7 @@
 """
 Notification preferences changed from the dashboard (Settings page): Alexa
-on/off, Alexa quiet hours, alert-lamp automation and lamp quiet hours. Saved
+on/off, Alexa quiet hours, alert-lamp automation and lamp quiet hours, and
+room enter/leave messages with their quiet hours. Saved
 to data/preferences.json and applied again at start-up, so they survive a
 restart. Defaults come from config.py / .env.
 """
@@ -24,22 +25,28 @@ def valid_quiet_hours(value: str) -> str:
 
 
 class Preferences:
-    FIELDS = {"voice_on": bool, "voice_quiet_hours": str, "lamp_auto": bool, "lamp_quiet_hours": str}
+    FIELDS = {"voice_on": bool, "voice_quiet_hours": str, "lamp_auto": bool, "lamp_quiet_hours": str,
+              "presence_on": bool, "presence_quiet_hours": str}
 
-    def __init__(self, path: str, voice, lamp):
+    def __init__(self, path: str, voice, lamp, presence=None):
         self._path = path
         self._voice = voice
         self._lamp = lamp
+        self._presence = presence
         self._lock = threading.Lock()
         self._apply(self._load())
 
     def as_dict(self) -> dict:
-        return {
+        out = {
             "voice_on": self._voice.on,
             "voice_quiet_hours": self._voice.quiet_hours,
             "lamp_auto": self._lamp.auto,
             "lamp_quiet_hours": self._lamp.quiet_hours,
         }
+        if self._presence is not None:
+            out["presence_on"] = self._presence.on
+            out["presence_quiet_hours"] = self._presence.quiet_hours
+        return out
 
     def update(self, changes: dict) -> dict:
         """Partial update; validates everything before applying anything. Raises ValueError."""
@@ -68,6 +75,11 @@ class Preferences:
             self._lamp.auto = values["lamp_auto"]
         if "lamp_quiet_hours" in values:
             self._lamp.quiet_hours = values["lamp_quiet_hours"]
+        if self._presence is not None:
+            if "presence_on" in values:
+                self._presence.on = values["presence_on"]
+            if "presence_quiet_hours" in values:
+                self._presence.quiet_hours = values["presence_quiet_hours"]
 
     def _load(self) -> dict:
         try:

@@ -3,6 +3,7 @@ Compiles the ESP8266 firmware and uploads it, over USB or over Wi-Fi (OTA).
 
     python tools/flash.py usb          # finds the board's COM port by itself
     python tools/flash.py ota [host]   # default host: aios-bedroom.local
+    python tools/flash.py compile      # only checks that the sketch builds
 
 Uses the arduino-cli bundled with Arduino IDE. Writes flash_esp.log next to
 the project. Run it through flash_esp.bat / flash_ota.bat.
@@ -21,6 +22,8 @@ LOG = os.path.join(ROOT, "flash_esp.log")
 FQBN = "esp8266:esp8266:nodemcuv2"
 CLI = r"C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe"
 OTA_HOST_PORT = "48266"  # the board connects back here; allow_ota.bat opens it in the firewall
+# Arduino libraries the sketch needs (installed once, then skipped).
+LIBRARIES = ["PubSubClient", "DHT sensor library", "Adafruit Unified Sensor", "Adafruit GFX Library", "Adafruit SSD1306"]
 USB_SERIAL_VIDS = {"0x1A86", "0x10C4", "0x0403"}  # CH340, CP210x, FTDI
 
 
@@ -46,7 +49,16 @@ def run(args: list[str], secret: str | None = None) -> int:
     return code
 
 
+def install_libraries() -> None:
+    out = subprocess.run([CLI, "lib", "list", "--format", "json"], capture_output=True, text=True,
+                         encoding="utf-8", errors="replace").stdout
+    missing = [lib for lib in LIBRARIES if f'"{lib}"' not in out]
+    if missing:
+        run([CLI, "lib", "install", *missing])
+
+
 def compile_sketch() -> bool:
+    install_libraries()
     return run([CLI, "compile", "--fqbn", FQBN, "--output-dir", BUILD, SKETCH]) == 0
 
 
@@ -94,6 +106,9 @@ def main() -> int:
         log("COMPILE FAILED: nothing was uploaded.")
         return 1
 
+    if mode == "compile":
+        log("COMPILE OK (nothing uploaded)")
+        return 0
     if mode == "usb":
         port = find_usb_port()
         if not port:

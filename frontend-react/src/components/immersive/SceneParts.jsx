@@ -176,6 +176,54 @@ export function LiveRoomEffects({ color, view, alert, reduced }) {
   );
 }
 
+/* ---------- someone in the live room (mmWave radar) ---------- */
+const PERSON_POS = [-2.7, 0, -1.5]; // by the desk, in front of the bed
+const PERSON_COLOR = "#7DD3FC";
+
+/** Glowing figure that fades in when the radar sees someone and out when the room is empty. */
+export function Person({ present, reduced }) {
+  const group = useRef();
+  const body = useRef();
+  const head = useRef();
+  const halo = useRef();
+  const shown = useRef(present ? 1 : 0);
+
+  useFrame(({ clock, invalidate }, dt) => {
+    const target = present ? 1 : 0;
+    shown.current = reduced ? target : THREE.MathUtils.damp(shown.current, target, 4, Math.min(dt, 0.05));
+    const k = shown.current;
+    if (!group.current) return;
+    group.current.visible = k > 0.01;
+    const breathe = reduced ? 0 : Math.sin(clock.elapsedTime * 1.6) * 0.015;
+    group.current.scale.setScalar(0.85 + 0.15 * k);
+    group.current.position.y = (1 - k) * -0.3 + breathe;
+    if (body.current) body.current.opacity = 0.75 * k;
+    if (head.current) head.current.opacity = 0.9 * k;
+    if (halo.current) halo.current.opacity = 0.35 * k * (reduced ? 1 : 0.75 + 0.25 * Math.sin(clock.elapsedTime * 2));
+    if (reduced && Math.abs(k - target) > 0.001) invalidate();
+  });
+
+  return (
+    <group ref={group} position={PERSON_POS} raycast={() => null}>
+      <mesh position-y={0.62}>
+        <capsuleGeometry args={[0.17, 0.62, 6, 16]} />
+        <meshStandardMaterial ref={body} color={PERSON_COLOR} emissive={PERSON_COLOR} emissiveIntensity={1.2}
+          transparent opacity={0} depthWrite={false} />
+      </mesh>
+      <mesh position-y={1.27}>
+        <sphereGeometry args={[0.15, 20, 16]} />
+        <meshStandardMaterial ref={head} color={PERSON_COLOR} emissive={PERSON_COLOR} emissiveIntensity={1.5}
+          transparent opacity={0} depthWrite={false} />
+      </mesh>
+      <mesh rotation-x={-Math.PI / 2} position-y={0.02}>
+        <ringGeometry args={[0.28, 0.42, 40]} />
+        <meshBasicMaterial ref={halo} color={PERSON_COLOR} transparent opacity={0} depthWrite={false}
+          blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
+}
+
 /* ---------- data path: sensor -> MQTT broker -> AI engine ---------- */
 function Orb({ position, color, radius, label, online, reduced }) {
   const shell = useRef();

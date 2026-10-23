@@ -56,7 +56,7 @@ function LiveRoomPanel({ room, latest, healthInfo, history, hasData, status, col
     <>
       <div className="imm-room-head">
         <h1>{room}</h1>
-        <small>DHT11 · {SERVER.mqttTopic}</small>
+        <small>{latest.sensor || "DHT11"} · {SERVER.mqttTopic}</small>
       </div>
       {hasData ? (
         <>
@@ -76,6 +76,11 @@ function LiveRoomPanel({ room, latest, healthInfo, history, hasData, status, col
         <div><dt>Health</dt><dd className="num">{hasData ? (healthInfo.health_score ?? "--") : "--"}</dd></div>
         <div><dt>Dew point</dt><dd className="num">{hasData && healthInfo.dew_point != null ? `${fmt(healthInfo.dew_point)}°` : "--"}</dd></div>
       </dl>
+      {hasData && latest.presence != null && (
+        <p className={`imm-presence ${latest.presence ? "is-in" : ""}`}>
+          <span aria-hidden="true" />{latest.presence ? "Someone is in the room" : "Room is empty"}
+        </p>
+      )}
       {hasData && healthInfo.mold_risk && <p className="imm-muted">Mold risk: {healthInfo.mold_risk}</p>}
       <Sparkline points={points} color={colorHex ?? "#64748B"} />
       <div className="imm-spark-cap"><span>Last hour</span><span>Band = comfort {THRESHOLDS.TEMP_LOW}–{THRESHOLDS.TEMP_HIGH}°</span></div>
