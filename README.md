@@ -57,6 +57,7 @@ smart-building-ai/
 ├── reports/generate_report.py        # Text report over the simulated CSV
 ├── firmware/esp8266_dht11/   # Sensor sketch (secrets.h is git-ignored)
 ├── tools/check_secrets.py     # Pre-commit secret scanner
+├── tools/flash.py             # Compile + upload the sketch (USB or OTA)
 ├── setup_security.bat/.ps1    # One-off: MQTT passwords, firewall, network profile
 ├── config.py                  # Central Python configuration (.env overrides)
 ├── main.py                    # Backend entry point
@@ -175,7 +176,11 @@ Thresholds changed from the Settings page are saved by the backend to `data/sett
 
 ## ESP8266 firmware
 
-The sensor sketch lives in `firmware/esp8266_dht11/`. Copy `secrets.example.h` to `secrets.h` (git-ignored), set your Wi-Fi, the broker PC's LAN IP and the MQTT login, then upload with the Arduino IDE (board: NodeMCU 1.0). Libraries: PubSubClient, DHT sensor library.
+The sensor sketch lives in `firmware/esp8266_dht11/`. Copy `secrets.example.h` to `secrets.h` (git-ignored), set your Wi-Fi, the broker PC's LAN IP and the MQTT login. Libraries: PubSubClient, DHT sensor library. Board: NodeMCU 1.0.
+
+**Several Wi-Fi networks.** Besides `WIFI_SSID`, `secrets.h` can list `WIFI_SSID_2` to `WIFI_SSID_4` (home, phone hotspot, work). The board joins whichever is in range (ESP8266WiFiMulti) and reconnects by itself if it drops. Network names are case-sensitive, so a hotspot called `TP-LINK_...` needs its own entry even if the router is `TP-Link_...`. Each reading also reports the network, IP, signal (`rssi`) and firmware version (`fw`).
+
+**Uploading.** `flash_esp.bat` compiles the sketch with the arduino-cli bundled in Arduino IDE and uploads it over USB; it finds the board's COM port itself. Close the Arduino serial monitor first. After that first USB upload, `flash_ota.bat` updates the board over Wi-Fi (ArduinoOTA, host `aios-bedroom.local`, password `OTA_PASSWORD` from `secrets.h`). Pass the board's IP if mDNS doesn't resolve: `flash_ota.bat 192.168.1.50`. During an OTA upload the board connects back to the PC on TCP 48266; run `allow_ota.bat` once (admin) to allow that port for the local subnet. Both write `flash_esp.log`.
 
 **The board finds the PC by itself.** The backend broadcasts `AIOS-BROKER v1 port=1883` on UDP 18831 every 3 s. The ESP8266 listens and connects to whichever PC sent it, so a new IP on the PC (another Wi-Fi, a DHCP change) doesn't break the sensor. `MQTT_SERVER` in `secrets.h` is just the first guess at boot.
 

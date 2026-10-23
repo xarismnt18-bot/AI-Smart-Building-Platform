@@ -39,3 +39,7 @@ ikea.env
 
 # audit / helper logs
 *.log
+
+# arduino-cli build output
+firmware/build/
+flash_esp.log
