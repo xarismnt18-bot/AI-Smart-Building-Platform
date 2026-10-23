@@ -1813,3 +1813,71 @@ body { background: var(--bg); font-family: Manrope, system-ui, sans-serif; }
 .se-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .se-actions .export-btn { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
 .se-actions .export-btn:disabled { opacity: .5; cursor: default; }
+
+/* =====================================================================
+   v6.16: phone polish. Alerts visible on the phone dashboard, a smaller
+   type scale, no outer frame around module pages (the cards are the
+   frames), one-row room chips and range filters.
+   ===================================================================== */
+.imm-phone-alert { display: none; }
+
+@media (max-width: 767.98px) {
+  /* ---- dashboard ---- */
+  .imm-hud { padding: 10px 12px; gap: 8px; }
+  .imm-status { gap: 6px; }
+  .imm-pill { min-height: 28px; padding: 0 10px; font-size: 12px; gap: 6px; }
+  .imm-left { padding: 12px 14px; gap: 2px; }
+  .imm-phone-alert {
+    display: flex; flex-direction: column; gap: 2px; margin: -2px 0 10px !important; padding: 8px 10px;
+    border-radius: 8px; border: 1px solid rgba(239, 68, 68, .5); background: rgba(40, 8, 10, .85);
+    font-size: 13px; line-height: 1.4; color: #F1C4C4;
+  }
+  .imm-phone-alert strong { color: #FCA5A5; font-size: 14px; }
+  .imm-room-head h1 { font-size: 17px; }
+  .imm-room-head small { display: none; }
+  .imm-big { font-size: 40px; margin-top: 2px !important; }
+  .imm-big sup { font-size: 16px; top: 4px; }
+  .imm-trend { font-size: 13px; margin: 2px 0 8px !important; }
+  .imm-stats { padding-top: 10px; gap: 6px; }
+  .imm-stats dt { font-size: 11px; }
+  .imm-stats dd { font-size: 17px; }
+  .imm-left .imm-muted { font-size: 12px; }
+  .wx--compact { padding-top: 10px; margin-top: 6px; gap: 6px; }
+  .wx--compact .wx-title { font-size: 13px; }
+  .wx--compact .wx-now { gap: 10px; }
+  .wx--compact .wx-temp { font-size: 22px; }
+  .wx--compact .wx-desc { font-size: 12px; line-height: 1.35; }
+  .wx--compact .wx-advice { padding: 6px 10px; }
+  .wx--compact .wx-advice strong { font-size: 13px; }
+  .wx--compact .wx-link { min-height: 28px; padding: 2px 0; }
+  .imm-bottom { gap: 8px; }
+  .imm-controls { width: 100%; gap: 8px; }
+  .imm-seg button { min-height: 40px; font-size: 13px; padding: 0 14px; }
+  .imm-chips {
+    flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; width: 100%;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: 2px;
+  }
+  .imm-chips::-webkit-scrollbar { display: none; }
+  .imm-chips button { flex: 0 0 auto; min-height: 40px; font-size: 13px; padding: 0 12px; }
+
+  /* ---- module pages ---- */
+  .main { padding: 12px 12px 40px; }
+  .module-page {
+    background: none; border: 0; border-radius: 0; box-shadow: none; backdrop-filter: none;
+    padding: 4px 0 0; min-height: 0;
+  }
+  .module-page h1 { font-size: 26px; letter-spacing: .5px; line-height: 1.15; }
+  .module-subtitle { font-size: 13px; line-height: 1.45; margin-bottom: 16px; }
+  .module-page .module-card { padding: 16px; }
+  .module-page .module-card > h3 { font-size: 12px; }
+  .kpi-label { font-size: 10px; letter-spacing: 1.2px; }
+  .kpi-value { font-size: 20px; }
+  .settings-status-row { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px; }
+  .settings-status-row .module-card { padding: 12px; }
+  .range-filter { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .range-filter button { padding: 0 4px; font-size: 13px; }
+  .range-filter__note { grid-column: 1 / -1; margin-left: 0; }
+  .alert-module { padding: 14px 16px; }
+  .alert-module h3 { font-size: 16px; }
+  .alert-module p { font-size: 14px; }
+}

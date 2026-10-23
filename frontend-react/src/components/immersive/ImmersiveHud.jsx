@@ -110,6 +110,20 @@ function AlertPanel({ status, alerts, room }) {
   );
 }
 
+/** Phone only: the desktop alert panel sits in the right column, which phones don't show. */
+function PhoneAlert({ status, alerts, room }) {
+  if (!status.api) {
+    return <p className="imm-phone-alert" role="status"><strong>No data.</strong> Backend unreachable.</p>;
+  }
+  if (!alerts.length) return null;
+  return (
+    <div className="imm-phone-alert" role="status">
+      <strong>{room} needs attention</strong>
+      {alerts.map((line) => <span key={line}>{line}</span>)}
+    </div>
+  );
+}
+
 function PacketLog({ rows }) {
   return (
     <div className="imm-panel imm-log">
@@ -146,6 +160,7 @@ export default function ImmersiveHud({
       </header>
 
       <section className="imm-left imm-panel" aria-label="Selected room">
+        <PhoneAlert status={status} alerts={alerts} room={room} />
         {selected === LIVE_ROOM_ID
           ? <LiveRoomPanel room={room} latest={latest} healthInfo={healthInfo} history={history} hasData={hasData} status={status} colorHex={colorHex} />
           : <EmptyRoomPanel name={selectedRoom?.name} />}
