@@ -6,6 +6,8 @@ const FORECAST = "https://api.open-meteo.com/v1/forecast";
 const GEOCODE = "https://geocoding-api.open-meteo.com/v1/search";
 // Free client-side reverse geocoding, allowed for the device's own position.
 const REVERSE = "https://api.bigdatacloud.net/data/reverse-geocode-client";
+// Rough position from the internet connection, when the browser won't give one.
+const IP_GEO = "https://get.geojs.io/v1/ip/geo.json";
 
 async function getJson(url) {
   const res = await fetch(url);
@@ -38,6 +40,14 @@ export async function placeName({ lat, lon }) {
   const params = new URLSearchParams({ latitude: lat, longitude: lon, localityLanguage: "en" });
   const json = await getJson(`${REVERSE}?${params}`);
   return json.locality || json.city || json.principalSubdivision || json.countryName || null;
+}
+
+/** City-level position from the public IP address: no permission needed, roughly the right town. */
+export async function ipLocation() {
+  const json = await getJson(IP_GEO);
+  const lat = Number(json.latitude), lon = Number(json.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error("no position");
+  return { lat, lon, name: json.city || json.region || json.country || "Your area", source: "ip" };
 }
 
 export async function searchPlaces(query) {

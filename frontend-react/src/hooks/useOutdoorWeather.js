@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { DEMO } from "../config";
-import { fetchOutdoor, placeName } from "../lib/weather";
+import { fetchOutdoor, ipLocation, placeName } from "../lib/weather";
 
 const PLACE_KEY = "aios_weather_place"; // a place chosen by hand (overrides the device's position)
 const LAST_KEY = "aios_weather_last";   // last known position, so the card fills in instantly
@@ -32,8 +32,11 @@ function currentPosition() {
     }
     navigator.geolocation.getCurrentPosition(
       (p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }),
-      (e) => reject(Object.assign(new Error(e.message), { code: e.code === 1 ? "denied" : "unavailable" })),
-      { enableHighAccuracy: false, maximumAge: REFRESH_MS, timeout: 15000 },
+      (e) => reject(Object.assign(new Error(e.message), {
+        code: e.code === 1 ? "denied" : e.code === 3 ? "timeout" : "unavailable",
+      })),
+      // a laptop has no GPS: Windows works the position out from nearby Wi-Fi, which can take a while
+      { enableHighAccuracy: false, maximumAge: REFRESH_MS, timeout: 45000 },
     );
   });
 }
@@ -52,7 +55,8 @@ async function locateAndFetch() {
       write(LAST_KEY, where);
     } catch (e) {
       problem = e.code || "unavailable";
-      where = read(LAST_KEY);
+      // no device position: use the town of the internet connection, then the last known place
+      where = await ipLocation().catch(() => null) || read(LAST_KEY);
       if (!where) return { status: "needs-place", problem };
     }
   }
@@ -93,6 +97,21 @@ export function useOutdoorWeather() {
     };
   }, [version]);
 
+  // look again as soon as location is allowed (or blocked) in the browser
+  useEffect(() => {
+    let status = null;
+    const again = () => setVersion((v) => v + 1);
+    navigator.permissions?.query({ name: "geolocation" })
+      .then((s) => { status = s; s.addEventListener("change", again); })
+      .catch(() => {});
+    return () => status?.removeEventListener("change", again);
+  }, []);
+
+  const retry = useCallback(() => {
+    setState((prev) => ({ ...prev, status: "locating" }));
+    setVersion((v) => v + 1);
+  }, []);
+
   const choosePlace = useCallback((picked) => {
     write(PLACE_KEY, picked ? { ...picked, source: "manual" } : null);
     setManual(Boolean(picked));
@@ -100,5 +119,5 @@ export function useOutdoorWeather() {
     setVersion((v) => v + 1);
   }, []);
 
-  return { ...state, choosePlace, manual };
+  return { ...state, choosePlace, retry, manual };
 }

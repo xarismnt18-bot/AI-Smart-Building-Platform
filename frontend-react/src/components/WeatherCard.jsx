@@ -71,7 +71,8 @@ function PlacePicker({ onPick, onCancel }) {
 const NEEDS_PLACE_TEXT = {
   denied: "Location permission is off for this site. Allow it in the browser, or pick a place.",
   unsupported: "This address can't use location (it needs https, e.g. the Tailscale link). Pick a place instead.",
-  unavailable: "Couldn't find your position. Pick a place instead.",
+  unavailable: "Windows couldn't work out your position. Pick a place instead.",
+  timeout: "Finding your position took too long (no GPS on this device). Try again, or pick a place.",
 };
 
 // showing the last known place instead of the current one
@@ -79,19 +80,25 @@ const PROBLEM_TEXT = {
   denied: "Location permission is off for this site, so this is your last known place. Pick a place, or allow location in the browser.",
   unsupported: "This address can't use location (it needs https, e.g. the Tailscale link). Pick a place instead.",
   unavailable: "Couldn't get your position right now. Showing your last known place.",
+  timeout: "Couldn't get your position in time. Showing your last known place.",
 };
 
 /** Outside conditions where you are, and whether opening the window would help the room. */
 export default function WeatherCard({ wx, inside, compact = false }) {
   const [picking, setPicking] = useState(false);
-  const { place, weather, status, problem, choosePlace, manual } = wx;
+  const { place, weather, status, problem, choosePlace, retry, manual } = wx;
   const advice = windowAdvice(inside, weather, THRESHOLDS);
 
   if (status === "needs-place" || picking) {
     return (
       <section className={`imm-panel wx ${compact ? "wx--compact" : ""}`} aria-label="Outside weather">
         <h2 className="wx-title">Weather outside</h2>
-        {!picking && <p className="wx-note">{NEEDS_PLACE_TEXT[problem] || NEEDS_PLACE_TEXT.unavailable}</p>}
+        {!picking && (
+          <>
+            <p className="wx-note">{NEEDS_PLACE_TEXT[problem] || NEEDS_PLACE_TEXT.unavailable}</p>
+            <button type="button" className="wx-link" onClick={retry}>Try my location again</button>
+          </>
+        )}
         <PlacePicker
           onPick={(p) => { setPicking(false); choosePlace(p); }}
           onCancel={picking ? () => setPicking(false) : null}
@@ -132,6 +139,7 @@ export default function WeatherCard({ wx, inside, compact = false }) {
               {manual ? (
                 <button type="button" className="wx-link" onClick={() => choosePlace(null)}>Use my location instead</button>
               ) : place?.source === "demo" ? "Demo location · Open-Meteo"
+                : place?.source === "ip" ? "Approximate area, from your internet connection · Open-Meteo"
                 : problem ? PROBLEM_TEXT[problem] : "Your current location · Open-Meteo"}
             </p>
           )}
