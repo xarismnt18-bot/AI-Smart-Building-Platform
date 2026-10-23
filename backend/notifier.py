@@ -142,6 +142,9 @@ class AlertNotifier:
         self._state_path = state_path
         self._load_state()
         self._log("close_open_alerts", set(self._reported))
+        for key in self._reported:  # still active from before a restart: make sure the log shows it
+            self._log("alert_started", key, "Active since before AIOS restarted.", self._last_sent.get(key))
+            self._log("alert_notified", key)
         self._stop = threading.Event()
         self._thread = None
 

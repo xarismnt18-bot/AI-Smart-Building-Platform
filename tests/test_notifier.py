@@ -1,3 +1,4 @@
+import json
 import time
 
 import pytest
@@ -145,3 +146,15 @@ def test_restart_closes_alerts_that_are_no_longer_active(tmp_path):
     events = {e["key"]: e for e in store.alert_events(time.time() - 60)}
     assert len(store.alert_events(time.time() - 60)) == 2
     assert events["temp_high"]["ended"] is not None and events["humidity_high"]["ended"] is None
+
+
+def test_alert_active_across_restart_appears_in_log(thresholds, tmp_path):
+    from backend.history_store import HistoryStore
+
+    state = tmp_path / "state.json"
+    state.write_text(json.dumps({"notified": ["humidity_high"], "last_sent": {"humidity_high": time.time() - 600}}))
+    store = HistoryStore(str(tmp_path / "h.db"))
+    N.AlertNotifier(FakeTelegram(), FakeSensor(reading(hum=80)), FakeSettings(thresholds), 15, 30,
+                    history=store, state_path=str(state))
+    [event] = store.alert_events(time.time() - 3600)
+    assert event["key"] == "humidity_high" and event["ended"] is None and event["notified"]

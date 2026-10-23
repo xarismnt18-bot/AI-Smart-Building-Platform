@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { THRESHOLDS } from "../config";
 import { describeCode, searchPlaces, windowAdvice } from "../lib/weather";
 
@@ -37,12 +37,13 @@ function usePlaceSearch(onPick) {
 
 function PlacePicker({ onPick, onCancel }) {
   const s = usePlaceSearch(onPick);
+  const inputId = useId(); // the card is on the page twice (desktop panel and phone panel)
   return (
     <div className="wx-picker">
       <form onSubmit={s.search} className="wx-picker__form">
-        <label htmlFor="wx-place" className="wx-picker__label">Town or city</label>
+        <label htmlFor={inputId} className="wx-picker__label">Town or city</label>
         <div className="wx-picker__row">
-          <input id="wx-place" type="search" value={s.query} onChange={(e) => s.setQuery(e.target.value)}
+          <input id={inputId} type="search" value={s.query} onChange={(e) => s.setQuery(e.target.value)}
             placeholder="e.g. Porto Rafti" autoComplete="off" />
           <button type="submit" className="wx-btn" disabled={s.busy || s.query.trim().length < 2}>
             {s.busy ? "Searching…" : "Search"}
