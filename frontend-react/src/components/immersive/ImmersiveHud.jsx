@@ -2,6 +2,7 @@ import { DEMO, THRESHOLDS, SERVER, formatTime } from "../../config";
 import { humidityLegendGradient, temperatureLegendGradient } from "../../lib/colorScale";
 import { lastSeconds, toSeries, trendPer10Min } from "../../lib/series";
 import { LIVE_ROOM_ID, ROOMS } from "./layout";
+import WeatherCard from "../WeatherCard";
 
 const VIEWS = [["temp", "Temperature"], ["hum", "Humidity"], ["xray", "X-ray"]];
 
@@ -129,8 +130,9 @@ function PacketLog({ rows }) {
 
 export default function ImmersiveHud({
   room, latest, healthInfo, history, status, alerts, hasData, colorHex,
-  view, onView, selected, onSelect, onHome, packetRows,
+  view, onView, selected, onSelect, onHome, packetRows, wx,
 }) {
+  const inside = hasData ? { temperature: latest.temperature, humidity: latest.humidity } : null;
   const selectedRoom = ROOMS.find((r) => r.id === selected);
   const legend = view === "hum"
     ? [`${THRESHOLDS.HUMIDITY_LOW - 10}%`, humidityLegendGradient(), `${THRESHOLDS.HUMIDITY_CRITICAL}%`]
@@ -147,10 +149,12 @@ export default function ImmersiveHud({
         {selected === LIVE_ROOM_ID
           ? <LiveRoomPanel room={room} latest={latest} healthInfo={healthInfo} history={history} hasData={hasData} status={status} colorHex={colorHex} />
           : <EmptyRoomPanel name={selectedRoom?.name} />}
+        <div className="wx-phone"><WeatherCard wx={wx} inside={inside} compact /></div>
       </section>
 
       <aside className="imm-right" aria-label="Activity">
         <AlertPanel status={status} alerts={alerts} room={room} />
+        <WeatherCard wx={wx} inside={inside} />
         <PacketLog rows={packetRows} />
       </aside>
 

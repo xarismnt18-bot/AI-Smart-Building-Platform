@@ -6,6 +6,7 @@ import {
 } from "../config";
 import TelegramCard from "./TelegramCard";
 import LampCard from "./LampCard";
+import NotificationsCard from "./NotificationsCard";
 
 const THRESHOLD_FIELDS = [
   { key: "TEMP_LOW", label: "Temperature Low (°C)", color: "#f59e0b", min: -10, max: 50, step: 0.5 },
@@ -135,6 +136,7 @@ export default function Settings({ temp, humidity, health, lastUpdate, status, o
         <p className="settings-message" style={{ color: message.ok ? "#22c55e" : "#ef4444" }}>{message.text}</p>
       )}
 
+      <NotificationsCard apiOnline={status.api} />
       <TelegramCard apiOnline={status.api} />
       <LampCard apiOnline={status.api} />
 

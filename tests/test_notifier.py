@@ -114,3 +114,34 @@ def test_stuck_sensor_alert_is_text_only(thresholds, tmp_path):
     n._started_at = time.monotonic() - N.STARTUP_GRACE_SEC - 1
     n.check(); n.check()
     assert any("may be stuck" in m and "95%" in m for m in telegram.sent)
+
+
+def test_alert_log_records_start_delivery_and_end(thresholds, tmp_path):
+    from backend.history_store import HistoryStore
+
+    store = HistoryStore(str(tmp_path / "h.db"))
+    sensor, telegram = FakeSensor(reading(hum=80)), FakeTelegram()
+    n = N.AlertNotifier(telegram, sensor, FakeSettings(thresholds), 15, 30, history=store)
+    n._started_at = time.monotonic() - N.STARTUP_GRACE_SEC - 1
+    n.check(); n.check()
+    [event] = store.alert_events(time.time() - 60)
+    assert event["key"] == "humidity_high" and event["ended"] is None and event["notified"]
+    assert "humidity is high" in event["message"]
+
+    sensor.latest = reading(hum=60)
+    n.check(); n.check()
+    [event] = store.alert_events(time.time() - 60)
+    assert event["ended"] is not None and event["duration_sec"] >= 0
+
+
+def test_restart_closes_alerts_that_are_no_longer_active(tmp_path):
+    from backend.history_store import HistoryStore
+
+    store = HistoryStore(str(tmp_path / "h.db"))
+    store.alert_started("temp_high", "warm")
+    store.alert_started("temp_high", "warm again")  # already open: no duplicate
+    store.alert_started("humidity_high", "damp")
+    store.close_open_alerts(keep={"humidity_high"})
+    events = {e["key"]: e for e in store.alert_events(time.time() - 60)}
+    assert len(store.alert_events(time.time() - 60)) == 2
+    assert events["temp_high"]["ended"] is not None and events["humidity_high"]["ended"] is None

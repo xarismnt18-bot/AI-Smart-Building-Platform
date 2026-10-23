@@ -120,16 +120,16 @@ Malformed or out-of-range packets are ignored and counted (`invalid_packets`); t
 
 | Page | Description |
 |------|------------|
-| **Dashboard** | Full-screen live 3D twin of the home with a HUD: readings, trend, alerts, packet stream. Views: temperature, humidity, X-ray. Click a room to fly to it. The live room turns red and pulses on any alert, and grey when there is no data |
+| **Dashboard** | Full-screen live 3D twin of the home with a HUD: readings, trend, alerts, outside weather, packet stream. Views: temperature, humidity, X-ray. Click a room to fly to it. The live room turns red and pulses on any alert, and grey when there is no data |
 | **Floorplan** | 2D room status overview |
 | **Analytics** | Temperature and humidity trend charts |
 | **AI Brain** | Rule-based comfort analysis and deviation check |
 | **Predictions** | 10-minute forecasts with fit-based confidence |
 | **Energy** | **Simulated** power estimate (no power meter connected) |
 | **MQTT Stream** | Live packet monitor |
-| **Alerts** | Alerts from the backend, dew point and mold risk |
-| **Reports** | Summary statistics, distribution charts, CSV export |
-| **Settings** | Thresholds (saved in backend), dashboard preferences |
+| **Alerts** | Active alerts, dew point and mold risk, and the alert history (24 h / 7 / 30 days): when each alert started, how long it lasted and whether you were told |
+| **Reports** | Summary statistics, distribution charts, CSV of the recent packets and of the stored history (today, 24 h, 7 or 30 days) |
+| **Settings** | Thresholds (saved in backend), pause alerts, Alexa and alert-lamp on/off and quiet hours (saved in `data/preferences.json`), dashboard preferences |
 
 ## API Endpoints
 
@@ -143,7 +143,9 @@ Malformed or out-of-range packets are ignored and counted (`invalid_packets`); t
 | `/predictions` | GET | Forecasts for temperature and humidity |
 | `/recommendations` | GET | Suggested actions |
 | `/config` | GET / PUT / DELETE | Read, update (partial JSON) or reset thresholds |
-| `/notifications` | GET | Whether Telegram alerts are set up, and until when they are muted |
+| `/alerts/history?days=7` | GET | Alert log, newest first (start, end, message, whether it was sent) |
+| `/notifications` | GET / PUT | Which channels are set up, Alexa on/off and quiet hours, lamp automation and quiet hours, pause state. PUT takes `voice_on`, `voice_quiet_hours`, `lamp_auto`, `lamp_quiet_hours` |
+| `/notifications/mute?minutes=60` | POST / DELETE | Pause Telegram and Alexa alerts (like `/mute`), or resume |
 | `/notifications/test` | POST | Send a test message to Telegram |
 | `/voice/test` | POST | Make the Echo speak a test sentence |
 | `/voice/status` | GET | The sentence Alexa reads for "Alexa, bedroom status" |
@@ -178,7 +180,7 @@ Thresholds changed from the Settings page are saved by the backend to `data/sett
 
 The sensor sketch lives in `firmware/esp8266_dht11/`. Copy `secrets.example.h` to `secrets.h` (git-ignored), set your Wi-Fi, the broker PC's LAN IP and the MQTT login. Libraries: PubSubClient, DHT sensor library. Board: NodeMCU 1.0.
 
-**Several Wi-Fi networks.** Besides `WIFI_SSID`, `secrets.h` can list `WIFI_SSID_2` to `WIFI_SSID_4` (home, phone hotspot, work). The board joins whichever is in range (ESP8266WiFiMulti) and reconnects by itself if it drops. Network names are case-sensitive, so a hotspot called `TP-LINK_...` needs its own entry even if the router is `TP-Link_...`. Each reading also reports the network, IP, signal (`rssi`) and firmware version (`fw`).
+**Several Wi-Fi networks.** Besides `WIFI_SSID`, `secrets.h` can list `WIFI_SSID_2` to `WIFI_SSID_4` (home, phone hotspot, work). The board joins whichever is in range (ESP8266WiFiMulti) and reconnects by itself if it drops. Network names are case-sensitive, so a hotspot called `TP-LINK_...` needs its own entry even if the router is `TP-Link_...`. Each reading also reports the network, IP, signal (`rssi`) and firmware version (`fw`). To add the network the laptop is on right now, plug the board in by USB and run `add_wifi.bat` (asks for admin): it reads the name and password from Windows, writes them to `secrets.h` as the next free `WIFI_SSID_n` and uploads. The password is never shown or logged.
 
 **Uploading.** `flash_esp.bat` compiles the sketch with the arduino-cli bundled in Arduino IDE and uploads it over USB; it finds the board's COM port itself. Close the Arduino serial monitor first. After that first USB upload, `flash_ota.bat` updates the board over Wi-Fi (ArduinoOTA, host `aios-bedroom.local`, password `OTA_PASSWORD` from `secrets.h`). Pass the board's IP if mDNS doesn't resolve: `flash_ota.bat 192.168.1.50`. During an OTA upload the board connects back to the PC on TCP 48266; run `allow_ota.bat` once (admin) to allow that port for the local subnet. Both write `flash_esp.log`.
 
@@ -220,6 +222,14 @@ Backend unit tests (alerts, notifications, voice budget, Alexa status, alert lam
 venv\Scripts\pip install -r requirements-dev.txt
 venv\Scripts\python -m pytest
 ```
+
+## Outside weather and "open the window?"
+
+The dashboard shows the weather where you are (your browser's location, asked once; nothing is sent to the backend) from [Open-Meteo](https://open-meteo.com/), free and without a key. It compares the outside air with the room and says whether opening the window would help: humidity is compared as absolute humidity (g/m³), so cold, "90 %" outside air can still dry a warm room. No rain, no freezing air, and no airing that would only warm up a hot room or cool a cold one. Without location permission (or on a plain-http address) pick a town by hand; the choice is remembered in that browser.
+
+## Install on the phone
+
+Open the Tailscale link (`https://<pc>.ts.net/`) on the phone and choose *Add to Home screen* (Safari: Share → Add to Home Screen; Chrome: ⋮ → Install app). AIOS then opens full-screen with its own icon. A small service worker (`public/sw.js`) only shows an "AIOS is offline" page when the PC can't be reached; it never caches readings, so what you see is always live.
 
 ## Remote access (Tailscale)
 

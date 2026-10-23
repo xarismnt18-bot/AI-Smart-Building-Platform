@@ -27,3 +27,28 @@ def test_history_endpoints():
     r = client.get("/history.csv?hours=1")
     assert r.status_code == 200 and r.text.startswith("time,room,temperature_c,humidity_pct")
     assert "attachment" in r.headers["content-disposition"]
+
+
+def test_alert_history_endpoint():
+    assert isinstance(client.get("/alerts/history?days=7").json(), list)
+    assert client.get("/alerts/history?days=0").status_code == 422
+
+
+def test_notification_settings(monkeypatch, tmp_path):
+    from backend import api
+
+    monkeypatch.setattr(api.preferences, "_path", str(tmp_path / "prefs.json"))
+    before = client.get("/notifications").json()
+    try:
+        r = client.put("/notifications", json={"voice_quiet_hours": "22:00-07:30", "lamp_auto": False})
+        assert r.status_code == 200
+        assert r.json()["voice_quiet_hours"] == "22:00-07:30" and r.json()["lamp_auto"] is False
+        assert client.put("/notifications", json={"voice_quiet_hours": "soon"}).status_code == 422
+        assert client.put("/notifications", json={"volume": 5}).status_code == 422
+
+        muted = client.post("/notifications/mute?minutes=60").json()["muted_until"]
+        assert muted is not None
+        assert client.delete("/notifications/mute").json()["muted_until"] is None
+    finally:
+        client.put("/notifications", json={k: before[k] for k in
+                                           ("voice_on", "voice_quiet_hours", "lamp_auto", "lamp_quiet_hours")})

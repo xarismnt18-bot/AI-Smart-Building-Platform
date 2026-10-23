@@ -56,8 +56,9 @@ def parse_duration(text: str, default_sec: int = 3600) -> int | None:
 
 class TelegramBot:
     def __init__(self, telegram, notifier, sensor, settings, predictor, stats: DailyStats, summary_time: str,
-                 history=None):
+                 history=None, preferences=None):
         self.telegram = telegram
+        self._preferences = preferences  # saves /voice and /lamp auto changes across restarts
         self._notifier = notifier
         self._sensor = sensor
         self._settings = settings
@@ -199,12 +200,23 @@ class TelegramBot:
             return "I don't know that one.\n\n" + HELP
         return None
 
+    def _remember(self, change: dict, apply) -> None:
+        """Applies a setting, saving it like the dashboard does when possible."""
+        if self._preferences is None:
+            apply()
+            return
+        try:
+            self._preferences.update(change)
+        except (OSError, ValueError):
+            logger.exception("Could not save %s", change)
+            apply()
+
     def lamp_command(self, arg: str) -> str:
         lamp = self._notifier.lamp
         if not lamp or not lamp.enabled:
             return "💡 The alert lamp isn't set up. Run setup_ikea.bat on the PC."
         if arg in ("auto on", "auto off"):
-            lamp.auto = arg == "auto on"
+            self._remember({"lamp_auto": arg == "auto on"}, lambda: setattr(lamp, "auto", arg == "auto on"))
             return ("💡 The lamp will light up on temperature or humidity alerts "
                     f"(not during {lamp.quiet_hours})." if lamp.auto else "💡 Automatic lamp off. /lamp auto on to bring it back.")
         if arg in ("on", "off"):
@@ -221,10 +233,10 @@ class TelegramBot:
         if not voice or not voice.enabled:
             return "🔇 Voice alerts aren't set up. Run setup_voice.bat on the PC."
         if arg == "off":
-            voice.on = False
+            self._remember({"voice_on": False}, lambda: setattr(voice, "on", False))
             return "🔇 Alexa will stay quiet. /voice on to bring it back."
         if arg == "on":
-            voice.on = True
+            self._remember({"voice_on": True}, lambda: setattr(voice, "on", True))
             return f"🔊 Alexa will announce new alerts (quiet hours {voice.quiet_hours})."
         if arg == "test":
             try:

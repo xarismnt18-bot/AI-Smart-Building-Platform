@@ -118,6 +118,31 @@ export async function sendTestNotification() {
   return request("/notifications/test", { method: "POST" });
 }
 
+export async function saveNotificationSettings(changes) {
+  return request("/notifications", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(changes),
+  });
+}
+
+export async function muteAlerts(minutes) {
+  return request(`/notifications/mute?minutes=${minutes}`, { method: "POST" });
+}
+
+export async function unmuteAlerts() {
+  return request("/notifications/mute", { method: "DELETE" });
+}
+
+export function getAlertHistory(days) {
+  return request(`/alerts/history?days=${days}`);
+}
+
+/** Link that downloads every stored reading of the last `hours` as CSV (null in the demo). */
+export function historyCsvUrl(hours) {
+  return DEMO ? null : `${CLIENT.API_URL}/history.csv?hours=${Math.max(0.1, hours).toFixed(2)}`;
+}
+
 export async function switchLamp(on) {
   return request(`/lamp?on=${on}`, { method: "POST" });
 }

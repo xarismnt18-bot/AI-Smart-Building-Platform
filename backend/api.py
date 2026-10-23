@@ -15,7 +15,7 @@ from config import (  # noqa: E402
     PREDICTION_MINUTES_AHEAD, PREDICTION_LOOKBACK_MIN, SENSOR_STALE_SEC,
     MQTT_PORT, DISCOVERY_ENABLED, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC,
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN,
-    DAILY_SUMMARY_TIME, STATS_FILE, HISTORY_DB, ALERT_STATE_FILE,
+    DAILY_SUMMARY_TIME, STATS_FILE, HISTORY_DB, ALERT_STATE_FILE, PREFERENCES_FILE,
     VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS, VOICE_STATUS_VAR, VOICE_STATUS_SEC, VOICE_STATUS_ENABLED,
     IKEA_HUB_IP, IKEA_TOKEN, IKEA_OUTLET_ID, LAMP_QUIET_HOURS,
 )
@@ -33,6 +33,7 @@ from backend.telegram_bot import TelegramBot  # noqa: E402
 from backend.voice import VoiceAnnouncer, VoiceStatusPublisher  # noqa: E402
 from backend.ikea import AlertLamp, IkeaOutlet  # noqa: E402
 from backend.history_store import HistoryStore  # noqa: E402
+from backend.preferences import Preferences  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +45,13 @@ beacon = BrokerBeacon(MQTT_PORT, DISCOVERY_PORT, DISCOVERY_INTERVAL_SEC)
 telegram = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
 voice = VoiceAnnouncer(VOICEMONKEY_TOKEN, VOICEMONKEY_DEVICE, VOICE_QUIET_HOURS)
 lamp = AlertLamp(IkeaOutlet(IKEA_HUB_IP, IKEA_TOKEN, IKEA_OUTLET_ID), LAMP_QUIET_HOURS)
+preferences = Preferences(PREFERENCES_FILE, voice, lamp)
 history_store = HistoryStore(HISTORY_DB)
 notifier = AlertNotifier(telegram, sensor, settings, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN, voice=voice, lamp=lamp,
                          history=history_store, state_path=ALERT_STATE_FILE)
 voice_status = VoiceStatusPublisher(voice, sensor, settings, VOICE_STATUS_VAR, VOICE_STATUS_SEC)
 bot = TelegramBot(telegram, notifier, sensor, settings, predictor, DailyStats(STATS_FILE), DAILY_SUMMARY_TIME,
-                  history=history_store)
+                  history=history_store, preferences=preferences)
 
 
 @asynccontextmanager
@@ -73,7 +75,7 @@ async def lifespan(app: FastAPI):
     sensor.stop()
 
 
-app = FastAPI(title="Smart Building AI OS API", version="6.7.0", lifespan=lifespan)
+app = FastAPI(title="Smart Building AI OS API", version="6.15.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -149,6 +151,12 @@ def get_health():
     }
 
 
+@app.get("/alerts/history")
+def get_alert_history(days: float = Query(7, gt=0, le=30)):
+    """Alert log, newest first: when each alert started, cleared and whether you were told."""
+    return history_store.alert_events(time.time() - days * 86400)
+
+
 @app.get("/alerts")
 def get_alerts():
     alerts = [a.message for a in active_alerts(sensor.latest, settings.thresholds)]
@@ -199,14 +207,36 @@ def reset_config():
 # =========================
 @app.get("/notifications")
 def get_notifications():
-    muted = notifier.muted_until
     return {
         "telegram_enabled": telegram.enabled,
         "voice_enabled": voice.enabled,
-        "voice_on": voice.on,
-        "voice_quiet_hours": voice.quiet_hours,
-        "muted_until": muted,
+        "lamp_enabled": lamp.enabled,
+        "muted_until": notifier.muted_until,
+        **preferences.as_dict(),
     }
+
+
+@app.put("/notifications")
+def put_notifications(changes: dict):
+    """Change voice_on, voice_quiet_hours, lamp_auto or lamp_quiet_hours (saved across restarts)."""
+    try:
+        preferences.update(changes)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return get_notifications()
+
+
+@app.post("/notifications/mute")
+def mute_notifications(minutes: float = Query(..., gt=0, le=7 * 24 * 60)):
+    """Pauses Telegram and Alexa alerts, like the Telegram /mute command."""
+    notifier.mute(minutes * 60)
+    return get_notifications()
+
+
+@app.delete("/notifications/mute")
+def unmute_notifications():
+    notifier.unmute()
+    return get_notifications()
 
 
 @app.post("/notifications/test")
@@ -247,7 +277,7 @@ def get_lamp():
 
 @app.put("/lamp/auto")
 def set_lamp_auto(on: bool):
-    lamp.auto = on
+    preferences.update({"lamp_auto": on})
     return get_lamp()
 
 

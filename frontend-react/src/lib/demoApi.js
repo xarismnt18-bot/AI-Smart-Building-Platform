@@ -140,6 +140,32 @@ function latest() {
   };
 }
 
+const notify = {
+  telegram_enabled: false, voice_enabled: true, lamp_enabled: true, muted_until: null,
+  voice_on: true, voice_quiet_hours: "23:00-08:00", lamp_auto: true, lamp_quiet_hours: "23:00-08:00",
+};
+
+// a believable week of alerts for the Alerts page
+function demoAlertLog() {
+  const now = Date.now() / 1000;
+  const h = 3600;
+  const ev = (id, key, message, ago, lasted, notified = true) => ({
+    id, key, message, started: now - ago, ended: lasted == null ? null : now - ago + lasted,
+    notified, duration_sec: Math.round(lasted ?? ago),
+  });
+  const r = last();
+  const list = [
+    ev(1, "humidity_high", "💧 Bedroom humidity is high: 74% (limit 70%). Mold risk rises; open a window or run the dehumidifier.", 26 * h, 1.6 * h),
+    ev(2, "sensor_offline", "📡 Bedroom sensor stopped sending (last packet 45 s ago).", 50 * h, 0.2 * h, false),
+    ev(3, "temp_high", "🌡️ Bedroom is warm: 27.6°C (comfort limit 27°C).", 75 * h, 2.4 * h),
+    ev(4, "humidity_high", "💧 Bedroom humidity is high: 72% (limit 70%).", 5 * 24 * h, 3.1 * h),
+  ];
+  if (r.humidity > thresholds.HUMIDITY_HIGH) {
+    list.unshift(ev(0, "humidity_high", `💧 Bedroom humidity is high: ${Math.round(r.humidity)}% (limit ${thresholds.HUMIDITY_HIGH}%).`, 240, null));
+  }
+  return list;
+}
+
 const config = () => ({ thresholds: { ...thresholds }, mqtt_topic: "smartroom/dht11" });
 
 /** Same contract as config.js request(): resolves to JSON or throws Error(detail). */
@@ -170,7 +196,16 @@ export async function demoRequest(path, options = {}) {
     if (method === "DELETE") thresholds = { ...DEFAULT_THRESHOLDS };
     return config();
   }
-  if (route === "/notifications") return { telegram_enabled: false, muted_until: null };
+  if (route === "/notifications") {
+    if (method === "PUT") Object.assign(notify, JSON.parse(options.body || "{}"));
+    return { ...notify };
+  }
+  if (route === "/notifications/mute") {
+    const minutes = Number(new URLSearchParams(path.split("?")[1] || "").get("minutes")) || 60;
+    notify.muted_until = method === "DELETE" ? null : Date.now() / 1000 + minutes * 60;
+    return { ...notify };
+  }
+  if (route === "/alerts/history") return demoAlertLog();
   if (route === "/history/range") {
     const params = new URLSearchParams(path.split("?")[1] || "");
     const hours = Number(params.get("hours")) || 24;

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { THRESHOLDS, formatTime } from "../config";
+import StoredExport from "./StoredExport";
 
 function Histogram({ data, field, color, thresholdHigh, thresholdLow, label, unit }) {
   const values = data.map((d) => Number(d[field])).filter((v) => !Number.isNaN(v));
@@ -123,6 +124,7 @@ Total alerts: ${totalAlerts}
         <div className="module-card" style={{ padding: 40, textAlign: "center" }}>
           <p style={{ color: "#94a3b8", fontSize: 18 }}>Waiting for telemetry data...</p>
         </div>
+        <StoredExport />
       </div>
     );
   }
@@ -203,9 +205,11 @@ Total alerts: ${totalAlerts}
 
       {/* Export buttons */}
       <div className="reports-export-row">
-        <button className="export-btn" onClick={downloadCSV}>Download CSV</button>
+        <button className="export-btn" onClick={downloadCSV}>Download recent packets (CSV)</button>
         <button className="export-btn secondary" onClick={downloadSummary}>Download Summary (.txt)</button>
       </div>
+
+      <StoredExport />
     </div>
   );
 }

@@ -141,6 +141,7 @@ class AlertNotifier:
         self._stuck_checked_at = -1e9
         self._state_path = state_path
         self._load_state()
+        self._log("close_open_alerts", set(self._reported))
         self._stop = threading.Event()
         self._thread = None
 
@@ -208,6 +209,7 @@ class AlertNotifier:
 
     def _raise(self, key: str, latest: dict, thresholds) -> None:
         self._reported.add(key)
+        self._log("alert_started", key, describe(key, latest, thresholds, resolved=False, stuck=self.stuck))
         now = time.time()
         if now - self._last_sent.get(key, -self._cooldown_sec) < self._cooldown_sec:
             return
@@ -215,15 +217,27 @@ class AlertNotifier:
             self._last_sent[key] = now
             self._notified.add(key)
             self._save_state()
+            self._log("alert_notified", key)
             if key not in SILENT_KEYS:
                 self._speak(key, spoken(key, latest, thresholds))
 
     def _clear(self, key: str, latest: dict, thresholds) -> None:
         self._reported.discard(key)
+        self._log("alert_ended", key)
         if key in self._notified:  # only confirm alerts the user actually received
             self._notified.discard(key)
             self._save_state()
             self._send(describe(key, latest, thresholds, resolved=True))
+
+    def _log(self, method: str, *args) -> None:
+        """Alert log for the dashboard; never allowed to break notifications."""
+        log = getattr(self.history, method, None)
+        if log is None:
+            return
+        try:
+            log(*args)
+        except Exception:
+            logger.exception("Alert log: %s failed", method)
 
     # ---------- remembered across restarts ----------
     def _load_state(self) -> None:

@@ -1,5 +1,6 @@
 """
-Long-term reading history in SQLite (data/history.db).
+Long-term reading history in SQLite (data/history.db), plus the alert log
+(when each alert started and cleared) shown on the dashboard's Alerts page.
 
 The MQTT client keeps only the last few hundred packets in memory, so a
 background thread stores the live reading every SAMPLE_SEC seconds and keeps
@@ -31,6 +32,10 @@ class HistoryStore:
             self._db.execute(
                 "CREATE TABLE IF NOT EXISTS readings (ts REAL PRIMARY KEY, room TEXT, temperature REAL, humidity REAL)"
             )
+            self._db.execute(
+                "CREATE TABLE IF NOT EXISTS alert_events (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, "
+                "message TEXT, started REAL NOT NULL, ended REAL, notified INTEGER NOT NULL DEFAULT 0)"
+            )
         self._stop = threading.Event()
 
     # ---------- writing ----------
@@ -44,8 +49,48 @@ class HistoryStore:
         return True
 
     def prune(self, now: float | None = None) -> None:
+        cutoff = (now or time.time()) - KEEP_DAYS * 86400
         with self._lock, self._db:
-            self._db.execute("DELETE FROM readings WHERE ts < ?", ((now or time.time()) - KEEP_DAYS * 86400,))
+            self._db.execute("DELETE FROM readings WHERE ts < ?", (cutoff,))
+            self._db.execute("DELETE FROM alert_events WHERE ended IS NOT NULL AND ended < ?", (cutoff,))
+
+    # ---------- alert log ----------
+    def alert_started(self, key: str, message: str, ts: float | None = None) -> None:
+        """Opens an event for `key` unless one is already open."""
+        with self._lock, self._db:
+            if self._db.execute("SELECT 1 FROM alert_events WHERE key = ? AND ended IS NULL", (key,)).fetchone():
+                return
+            self._db.execute("INSERT INTO alert_events (key, message, started) VALUES (?, ?, ?)",
+                             (key, message, ts or time.time()))
+
+    def alert_notified(self, key: str) -> None:
+        with self._lock, self._db:
+            self._db.execute("UPDATE alert_events SET notified = 1 WHERE key = ? AND ended IS NULL", (key,))
+
+    def alert_ended(self, key: str, ts: float | None = None) -> None:
+        with self._lock, self._db:
+            self._db.execute("UPDATE alert_events SET ended = ? WHERE key = ? AND ended IS NULL",
+                             (ts or time.time(), key))
+
+    def close_open_alerts(self, keep: set[str], ts: float | None = None) -> None:
+        """At start-up: alerts left open by a previous run that are no longer active."""
+        with self._lock, self._db:
+            for (key,) in self._db.execute("SELECT DISTINCT key FROM alert_events WHERE ended IS NULL").fetchall():
+                if key not in keep:
+                    self._db.execute("UPDATE alert_events SET ended = ? WHERE key = ? AND ended IS NULL",
+                                     (ts or time.time(), key))
+
+    def alert_events(self, since: float, limit: int = 200) -> list[dict]:
+        """Newest first. `ended` is None while the alert is still active."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT id, key, message, started, ended, notified FROM alert_events "
+                "WHERE started >= ? OR ended IS NULL ORDER BY started DESC LIMIT ?", (since, limit),
+            ).fetchall()
+        return [{
+            "id": i, "key": k, "message": m, "started": s, "ended": e, "notified": bool(n),
+            "duration_sec": round((e or time.time()) - s),
+        } for i, k, m, s, e, n in rows]
 
     def start(self, sensor) -> None:
         def loop():

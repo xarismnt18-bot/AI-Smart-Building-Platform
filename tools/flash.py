@@ -32,6 +32,8 @@ def log(text: str) -> None:
 
 
 def run(args: list[str], secret: str | None = None) -> int:
+    """Exit code of the command; also non-zero when esptool reports a fatal error
+    (arduino-cli sometimes exits 0 anyway)."""
     log("> " + " ".join("***" if secret and a == secret else a for a in args))
     proc = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace")
     out = ((proc.stdout or "") + (proc.stderr or "")).strip()
@@ -39,8 +41,9 @@ def run(args: list[str], secret: str | None = None) -> int:
         out = out.replace(secret, "***")
     if out:
         log(out[-4000:])
-    log(f"exit code: {proc.returncode}")
-    return proc.returncode
+    code = proc.returncode or (1 if "fatal esptool.py error" in out.lower() else 0)
+    log(f"exit code: {code}")
+    return code
 
 
 def compile_sketch() -> bool:
@@ -65,7 +68,8 @@ def find_usb_port() -> str | None:
     candidates.sort(reverse=True)
     for label, address in candidates:
         log(f"serial port: {address} ({'USB-serial chip' if label else 'other'})")
-    return candidates[0][1] if candidates else None
+    usb = [address for is_usb, address in candidates if is_usb]
+    return usb[0] if usb else None  # Bluetooth/modem COM ports are never the board
 
 
 def ota_password() -> str | None:
@@ -93,7 +97,7 @@ def main() -> int:
     if mode == "usb":
         port = find_usb_port()
         if not port:
-            log("No board found on USB. Plug the ESP8266 in with a data cable and close the Arduino serial monitor.")
+            log("No ESP8266 found on USB. Plug it in with a data cable (not a charge-only one) and close the Arduino serial monitor.")
             return 1
         code = run([CLI, "upload", "-p", port, "--fqbn", FQBN, "--input-dir", BUILD, SKETCH])
     else:

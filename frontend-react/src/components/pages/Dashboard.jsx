@@ -5,6 +5,7 @@ import { humidityColor, temperatureColor } from "../../lib/colorScale";
 import { usePrefersReducedMotion } from "../../hooks/usePrefersReducedMotion";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { usePacketLog } from "../../hooks/usePacketLog";
+import { useOutdoorWeather } from "../../hooks/useOutdoorWeather";
 import ImmersiveScene from "../immersive/ImmersiveScene";
 import ImmersiveHud from "../immersive/ImmersiveHud";
 import { LIVE_ROOM_ID } from "../immersive/layout";
@@ -25,6 +26,7 @@ export default function Dashboard({ telemetry, room }) {
   const [selected, setSelected] = useState(LIVE_ROOM_ID);
   const [focus, setFocus] = useState("home");
   const packetRows = usePacketLog(latest, packetSeq, history);
+  const wx = useOutdoorWeather();
 
   const temp = latest.temperature;
   const hum = latest.humidity;
@@ -75,6 +77,7 @@ export default function Dashboard({ telemetry, room }) {
         onSelect={selectRoom}
         onHome={() => setFocus("home")}
         packetRows={packetRows}
+        wx={wx}
       />
     </div>
   );

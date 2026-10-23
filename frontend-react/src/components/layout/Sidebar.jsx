@@ -65,7 +65,7 @@ export default function Sidebar({ active, onNavigate, room, status, open }) {
       </nav>
 
       <div className="system">
-        <p>Version <b>v6.5</b></p>
+        <p>Version <b>v6.15</b></p>
         {DEMO && <p>Mode <b>Demo, simulated</b></p>}
         <p>Sensor <b>DHT11</b></p>
         <p>Topic <b>{SERVER.mqttTopic}</b></p>

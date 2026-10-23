@@ -1,3 +1,5 @@
+import AlertHistory from "../AlertHistory";
+
 export function Floorplan({ room, temp, humidity, health }) {
   return (
     <div className="module-page">
@@ -53,6 +55,8 @@ export function Alerts({ room, health, alerts, apiOnline, healthInfo }) {
           </p>
         </div>
       </div>
+
+      <AlertHistory apiOnline={apiOnline} />
     </div>
   );
 }
