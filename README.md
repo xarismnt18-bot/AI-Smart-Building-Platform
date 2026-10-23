@@ -4,7 +4,7 @@
 
 Thalpos is a smart room monitor. An ESP8266 measures the temperature and humidity of a room, a mmWave radar notices when someone is there, and a FastAPI backend turns the readings into alerts, forecasts and advice. You follow it all on a 3D dashboard of your home and on Telegram.
 
-**[▶ Live demo](https://xarismnt18-bot.github.io/AI-Smart-Building-Platform/)**: the real dashboard with a simulated sensor, running in your browser. Nothing to install.
+**[▶ Live demo](https://xarismnt18-bot.github.io/thalpos/)**: the real dashboard with a simulated sensor, running in your browser. Nothing to install.
 
 ![Dashboard: the live 3D twin with a humidity alert](docs/screenshots/demo.gif)
 

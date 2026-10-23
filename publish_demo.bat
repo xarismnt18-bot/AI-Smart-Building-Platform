@@ -12,7 +12,7 @@ for /f "delims=" %%N in ('git -C "%ROOT%." config user.name') do set "NAME=%%N"
 
 cd /d "%ROOT%frontend-react"
 set "VITE_DEMO=1"
-set "VITE_BASE=/AI-Smart-Building-Platform/"
+set "VITE_BASE=/thalpos/"
 call npm run build >> "%LOG%" 2>&1
 if errorlevel 1 ( echo build failed >> "%LOG%" & exit /b 1 )
 
