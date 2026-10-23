@@ -5,7 +5,7 @@ set "ROOT=%~dp0"
 set "MOSQUITTO_DIR=C:\Program Files\mosquitto"
 
 echo ========================================
-echo   Smart Building AI OS v6 - Launcher
+echo   Thalpos - Launcher
 echo ========================================
 
 rem --- stop previous backend (port 8000) and dashboard (port 5173), if running

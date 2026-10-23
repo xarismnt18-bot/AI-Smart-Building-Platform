@@ -62,6 +62,7 @@ export default function Dashboard({ telemetry, room }) {
         reduced={reduced}
         narrow={narrow}
         presence={hasData && latest.presence === true}
+        presenceSince={latest.presence_since}
       />
       <ImmersiveHud
         room={room}

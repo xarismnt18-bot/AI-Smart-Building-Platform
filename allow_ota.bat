@@ -7,5 +7,6 @@ if errorlevel 1 (
   exit /b
 )
 netsh advfirewall firewall delete rule name="AIOS ESP8266 OTA" >nul 2>&1
-netsh advfirewall firewall add rule name="AIOS ESP8266 OTA" dir=in action=allow protocol=TCP localport=48266 remoteip=LocalSubnet profile=any > "%~dp0allow_ota.log" 2>&1
+netsh advfirewall firewall delete rule name="Thalpos ESP8266 OTA" >nul 2>&1
+netsh advfirewall firewall add rule name="Thalpos ESP8266 OTA" dir=in action=allow protocol=TCP localport=48266 remoteip=LocalSubnet profile=any > "%~dp0allow_ota.log" 2>&1
 echo exit code %errorlevel% >> "%~dp0allow_ota.log"

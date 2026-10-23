@@ -94,7 +94,7 @@ def test_restart_does_not_repeat_alerts(thresholds, tmp_path):
     first = notifier()
     first.check(); first.check()
     assert len(telegram.sent) == 1
-    second = notifier()  # AIOS restarted, alert still active
+    second = notifier()  # Thalpos restarted, alert still active
     for _ in range(4):
         second.check()
     assert len(telegram.sent) == 1

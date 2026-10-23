@@ -1,7 +1,7 @@
 @echo off
 rem Starts broker, backend and dashboard with no windows; output goes to logs\.
 rem Used by the Windows autostart (install_autostart.bat). For a visible start
-rem with console windows, use Run_AIOS_v6.bat instead.
+rem with console windows, use Run_Thalpos.bat instead.
 set "ROOT=%~dp0"
 cd /d "%ROOT%"
 if not exist "%ROOT%logs" mkdir "%ROOT%logs"

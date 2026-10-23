@@ -1,3 +1,3 @@
 """
-Smart Building AI Package
+Thalpos AI package
 """

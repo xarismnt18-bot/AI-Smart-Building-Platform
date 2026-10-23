@@ -113,6 +113,13 @@ class PresenceWatcher:
             logger.info("Not sent (off, paused or quiet hours): %s", text)
         return text
 
+    @property
+    def since(self) -> float | None:
+        """Wall-clock time (epoch s) someone came in, while the room is occupied and it is known."""
+        if self._state is not True or self._since is None:
+            return None
+        return time.time() - (time.monotonic() - self._since)
+
     def should_notify(self, wall: datetime) -> bool:
         return bool(self.on and self.telegram.enabled and not self._notifier.muted_until
                     and not in_quiet_hours(wall, self.quiet_hours))

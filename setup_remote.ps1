@@ -1,8 +1,8 @@
-# Opens the AIOS dashboard to your own devices through Tailscale (no router changes).
+# Opens the Thalpos dashboard to your own devices through Tailscale (no router changes).
 # Needs Tailscale installed and signed in on this PC and on your phone. Safe to run again.
 $ErrorActionPreference = 'Stop'
 Write-Host ''
-Write-Host '=== AIOS remote access (Tailscale) ===' -ForegroundColor Cyan
+Write-Host '=== Thalpos remote access (Tailscale) ===' -ForegroundColor Cyan
 
 $ts = Join-Path $env:ProgramFiles 'Tailscale\tailscale.exe'
 if (-not (Test-Path $ts)) {

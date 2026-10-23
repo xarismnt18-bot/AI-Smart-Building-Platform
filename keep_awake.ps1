@@ -1,4 +1,4 @@
-# Lets AIOS keep running with the lid closed: only when plugged in, the laptop
+# Lets Thalpos keep running with the lid closed: only when plugged in, the laptop
 # never sleeps or hibernates, closing the lid does nothing and the screen turns
 # off after 2 minutes. Battery settings are not touched. Writes keep_awake.log.
 $log = Join-Path $PSScriptRoot 'keep_awake.log'

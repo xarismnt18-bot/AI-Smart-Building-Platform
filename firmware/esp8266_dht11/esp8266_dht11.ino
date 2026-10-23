@@ -28,15 +28,16 @@ const bool HAS_RADAR = true;   // set false if no radar is wired (the pin would 
 
 const char* ROOM_NAME = "Bedroom";
 const char* FIRMWARE_VERSION = "3.0";
-const char* OTA_HOSTNAME = "aios-bedroom";   // reachable as aios-bedroom.local
+const char* OTA_HOSTNAME = "thalpos-bedroom";   // reachable as thalpos-bedroom.local
 const unsigned long PUBLISH_INTERVAL_MS = 3000;   // the DHT11 fallback needs >= 1 s between reads
 const unsigned long MQTT_RETRY_MS = 3000;
 
-// Broker discovery: the AIOS backend broadcasts "AIOS-BROKER v1 port=1883" on
+// Broker discovery: the Thalpos backend broadcasts "THALPOS-BROKER v1 port=1883" on
 // this UDP port. The board connects to whoever sent it, so a new IP on the PC
 // no longer breaks the sensor. MQTT_SERVER in secrets.h is only the first guess.
 const uint16_t DISCOVERY_PORT = 18831;
-const char* BEACON_PREFIX = "AIOS-BROKER v1";
+const char* BEACON_PREFIX = "THALPOS-BROKER v1";
+const char* OLD_BEACON_PREFIX = "AIOS-BROKER v1";   // backends from before the rename
 WiFiUDP discovery;
 IPAddress brokerIp;
 uint16_t brokerPort = MQTT_PORT;
@@ -130,7 +131,8 @@ void listenForBroker() {
   int len = discovery.read(buf, sizeof(buf) - 1);
   if (len <= 0) return;
   buf[len] = '\0';
-  if (strncmp(buf, BEACON_PREFIX, strlen(BEACON_PREFIX)) != 0) return;
+  if (strncmp(buf, BEACON_PREFIX, strlen(BEACON_PREFIX)) != 0 &&
+      strncmp(buf, OLD_BEACON_PREFIX, strlen(OLD_BEACON_PREFIX)) != 0) return;
 
   uint16_t port = MQTT_PORT;
   const char* p = strstr(buf, "port=");

@@ -92,3 +92,12 @@ def test_duration_text():
     assert duration_text(30) == "less than a minute"
     assert duration_text(125) == "2 min"
     assert duration_text(3 * 3600) == "3 h"
+
+
+def test_since_only_while_someone_is_in():
+    w, tg, sensor, _ = make()
+    step(w, sensor, False, 0)
+    assert w.since is None
+    step(w, sensor, True, 10)
+    step(w, sensor, True, 10 + ENTER_HOLD_SEC)
+    assert w.since is not None

@@ -138,8 +138,10 @@ function latest() {
     connected: true,
     invalid_packets: 0,
     sensor: "SHT31",
-    // someone is in the room for 4 minutes out of every 6
+    // someone is in the room for 4 minutes out of every 6 (came in 17 min before the demo opened)
     presence: ((Date.now() - startedAt) / 1000) % 360 < 240,
+    presence_since: ((Date.now() - startedAt) / 1000) % 360 < 240
+      ? Math.round((startedAt + Math.floor((Date.now() - startedAt) / 360000) * 360000) / 1000) - 17 * 60 : null,
     device: { fw: "3.0", wifi: "Home", rssi: -58, ip: "192.168.1.20" },
   };
 }

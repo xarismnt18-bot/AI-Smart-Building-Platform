@@ -1,5 +1,5 @@
 """
-Connects AIOS to an IKEA smart plug through the DIRIGERA hub (local API).
+Connects Thalpos to an IKEA smart plug through the DIRIGERA hub (local API).
 Finds the hub on the network, asks you to press its action button, picks the
 plug, flashes it once and writes ikea.env (git-ignored). Safe to run again.
 Run it through setup_ikea.bat.
@@ -102,7 +102,7 @@ class Tee:
 
 def main():
     sys.stdout = Tee(sys.stdout, os.path.join(ROOT, "setup_ikea.log"))
-    print("\n=== AIOS alert lamp (IKEA DIRIGERA hub) ===")
+    print("\n=== Thalpos alert lamp (IKEA DIRIGERA hub) ===")
     print("The plug must already work in the IKEA Home smart app.\n")
     verifier = secrets.token_urlsafe(96)[:128]
     ip, code = find_hub(verifier)
@@ -144,7 +144,7 @@ def main():
     name = outlet["attributes"].get("customName") or outlet["id"]
 
     with open(ENV_FILE, "w", encoding="ascii") as f:
-        f.write("# IKEA hub for the AIOS alert lamp, written by setup_ikea.bat. Never commit this file.\n")
+        f.write("# IKEA hub for the Thalpos alert lamp, written by setup_ikea.bat. Never commit this file.\n")
         f.write(f"IKEA_HUB_IP={ip}\nIKEA_TOKEN={token}\nIKEA_OUTLET_ID={outlet['id']}\n")
 
     was_on = bool(outlet["attributes"].get("isOn"))
@@ -153,7 +153,7 @@ def main():
     call(ip, "PATCH", path, token, [{"attributes": {"isOn": not was_on}}])
     time.sleep(2)
     call(ip, "PATCH", path, token, [{"attributes": {"isOn": was_on}}])
-    done("Saved. Restarting AIOS turns the alert lamp on.")
+    done("Saved. Restarting Thalpos turns the alert lamp on.")
 
 
 if __name__ == "__main__":

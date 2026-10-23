@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 SAMPLE_SEC = 10
 HELP = (
-    "AIOS commands:\n"
+    "Thalpos commands:\n"
     "/status – current readings and alerts\n"
     "/today – today's range and time out of comfort\n"
     "/night – hour by hour, last 10 h (/night 24 for a day)\n"
@@ -160,7 +160,7 @@ class TelegramBot:
                         logger.warning("Telegram reply not sent: %s", e)
 
     def _skip_backlog(self) -> int | None:
-        """Commands sent while AIOS was off are stale; start after the newest one."""
+        """Commands sent while Thalpos was off are stale; start after the newest one."""
         try:
             pending = self.telegram.get_updates(-1, timeout=0)
         except RuntimeError:

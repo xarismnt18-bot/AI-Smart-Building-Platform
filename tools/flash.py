@@ -2,7 +2,7 @@
 Compiles the ESP8266 firmware and uploads it, over USB or over Wi-Fi (OTA).
 
     python tools/flash.py usb          # finds the board's COM port by itself
-    python tools/flash.py ota [host]   # default host: aios-bedroom.local
+    python tools/flash.py ota [host]   # default host: thalpos-bedroom.local
     python tools/flash.py compile      # only checks that the sketch builds
 
 Uses the arduino-cli bundled with Arduino IDE. Writes flash_esp.log next to
@@ -116,7 +116,7 @@ def main() -> int:
             return 1
         code = run([CLI, "upload", "-p", port, "--fqbn", FQBN, "--input-dir", BUILD, SKETCH])
     else:
-        host = sys.argv[2] if len(sys.argv) > 2 else "aios-bedroom.local"
+        host = sys.argv[2] if len(sys.argv) > 2 else "thalpos-bedroom.local"
         password, tool = ota_password(), espota()
         if not password or not tool:
             log("OTA needs OTA_PASSWORD in secrets.h and the ESP8266 core's espota.py.")

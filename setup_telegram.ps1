@@ -1,10 +1,10 @@
-﻿# Connects AIOS to a Telegram bot so alerts reach your phone.
+﻿# Connects Thalpos to a Telegram bot so alerts reach your phone.
 # Writes telegram.env (git-ignored). Safe to run again to change bot or chat.
 $ErrorActionPreference = 'Stop'
 $envFile = Join-Path $PSScriptRoot 'telegram.env'
 
 Write-Host ''
-Write-Host '=== AIOS Telegram alerts ===' -ForegroundColor Cyan
+Write-Host '=== Thalpos Telegram alerts ===' -ForegroundColor Cyan
 Write-Host '1. In Telegram, open @BotFather and send /newbot'
 Write-Host '2. Pick a name and a username ending in "bot"'
 Write-Host '3. BotFather replies with a token like 123456789:AAH...'
@@ -40,16 +40,16 @@ if (-not $chatId) {
 }
 
 @(
-  '# Telegram alerts for AIOS (written by setup_telegram.bat). Never commit this file.'
+  '# Telegram alerts for Thalpos (written by setup_telegram.bat). Never commit this file.'
   "TELEGRAM_BOT_TOKEN=$token"
   "TELEGRAM_CHAT_ID=$chatId"
 ) | Set-Content -Path $envFile -Encoding ascii
 
-$body = @{ chat_id = "$chatId"; text = 'AIOS is connected. You will get alerts here.' } | ConvertTo-Json
+$body = @{ chat_id = "$chatId"; text = 'Thalpos is connected. You will get alerts here.' } | ConvertTo-Json
 Invoke-RestMethod -Method Post -ContentType 'application/json; charset=utf-8' `
   -Uri "https://api.telegram.org/bot$token/sendMessage" -Body ([Text.Encoding]::UTF8.GetBytes($body)) | Out-Null
 
 Write-Host ''
 Write-Host 'Done. Check your phone for the test message.' -ForegroundColor Green
-Write-Host 'Restart AIOS (Run_AIOS_v6.bat, or sign out and in) to turn alerts on.'
+Write-Host 'Restart Thalpos (Run_Thalpos.bat, or sign out and in) to turn alerts on.'
 Read-Host 'Press Enter to close'

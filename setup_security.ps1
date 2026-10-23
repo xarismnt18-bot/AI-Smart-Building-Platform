@@ -1,4 +1,4 @@
-# One-off security setup for Smart Building AI OS (run elevated via setup_security.bat).
+# One-off security setup for Thalpos (run elevated via setup_security.bat).
 # - home Wi-Fi profile -> Private, Mosquitto firewall rule -> Private only
 # - Mosquitto: password login (anonymous off); random passwords generated here
 # - backend + ESP8266 credentials written to git-ignored files

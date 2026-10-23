@@ -92,7 +92,7 @@ export default function Reports({ room, history }) {
   const downloadSummary = () => {
     if (!stats) return;
     const totalAlerts = stats.tempHighCount + stats.tempLowCount + stats.humHighCount + stats.humLowCount;
-    const text = `Smart Building AI - Telemetry Report (${room})
+    const text = `Thalpos - Telemetry Report (${room})
 Generated: ${new Date().toLocaleString()}
 
 === SUMMARY ===

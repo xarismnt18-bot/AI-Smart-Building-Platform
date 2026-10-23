@@ -1,11 +1,11 @@
-﻿# Connects AIOS to your Echo through Voice Monkey so alerts are spoken aloud.
+﻿# Connects Thalpos to your Echo through Voice Monkey so alerts are spoken aloud.
 # Writes voice.env (git-ignored). Safe to run again.
 $ErrorActionPreference = 'Stop'
 $envFile = Join-Path $PSScriptRoot 'voice.env'
 $api = 'https://api-v3.voicemonkey.io'
 
 Write-Host ''
-Write-Host '=== AIOS voice alerts (Alexa) ===' -ForegroundColor Cyan
+Write-Host '=== Thalpos voice alerts (Alexa) ===' -ForegroundColor Cyan
 Write-Host 'Before this: sign in at voicemonkey.io, enable the Voice Monkey skill in the'
 Write-Host 'Alexa app, add your Echo as a Speaker device in the Voice Monkey console, and'
 Write-Host 'create an Alexa Routine: When = Alexa Voice Monkey v3 > VM Speakers > your speaker,'
@@ -37,7 +37,7 @@ if ($speakers.Count -eq 1) {
 Write-Host "Using speaker: $($device.name)" -ForegroundColor Green
 
 @(
-  '# Voice Monkey (Alexa) for AIOS, written by setup_voice.bat. Never commit this file.'
+  '# Voice Monkey (Alexa) for Thalpos, written by setup_voice.bat. Never commit this file.'
   "VOICEMONKEY_TOKEN=$token"
   "VOICEMONKEY_DEVICE=$($device.id)"
 ) | Set-Content -Path $envFile -Encoding ascii
@@ -49,5 +49,5 @@ try {
 } catch {
   Write-Host "Saved, but the test announcement failed: $($_.Exception.Message)" -ForegroundColor Yellow
 }
-Write-Host 'Restart AIOS (restart_aios.bat) to turn voice alerts on.'
+Write-Host 'Restart Thalpos (restart_thalpos.bat) to turn voice alerts on.'
 Read-Host 'Press Enter to close'

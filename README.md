@@ -72,7 +72,7 @@ You need Python 3.11+, Node.js 18+, [Mosquitto](https://mosquitto.org/download/)
 2. **Set up the sensor's secrets**: copy `firmware/esp8266_dht11/secrets.example.h` to `secrets.h` and fill in your Wi-Fi.
 3. **Secure the broker** (once, asks for admin): `setup_security.bat` creates the MQTT passwords, adds the board's login to `secrets.h` and sets the firewall rules.
 4. **Flash the sensor**: plug the board in by USB and run `flash_esp.bat`.
-5. **Start everything**: `Run_AIOS_v6.bat`, then open http://localhost:5173.
+5. **Start everything**: `Run_Thalpos.bat`, then open http://localhost:5173.
    To start it automatically at every sign-in, run `install_autostart.bat` once.
 6. **Alerts on your phone** (optional): `setup_telegram.bat`, then `setup_remote.bat` to open the dashboard over Tailscale.
 
@@ -82,9 +82,9 @@ The scripts are in the project root and can be double-clicked. Each writes a `.l
 
 | Script | When |
 |--------|------|
-| `Run_AIOS_v6.bat` | Start broker, backend and dashboard in their own windows |
+| `Run_Thalpos.bat` | Start broker, backend and dashboard in their own windows |
 | `install_autostart.bat` / `uninstall_autostart.bat` | Start Thalpos hidden at every Windows sign-in / undo it |
-| `restart_aios.bat` | Restart the background instance (after a setup step or an update) |
+| `restart_thalpos.bat` | Restart the background instance (after a setup step or an update) |
 | `flash_esp.bat` | Compile and upload the firmware over USB |
 | `flash_ota.bat` | Upload the firmware over Wi-Fi (after the first USB upload) |
 | `allow_ota.bat` | Once, to let Wi-Fi uploads through the firewall |

@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 API = "https://api-v3.voicemonkey.io"
 # Voice Monkey sits behind Cloudflare, which rejects Python's default
 # User-Agent ("error code: 1010"), so identify the client explicitly.
-HEADERS = {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (compatible; AIOS/6.7)"}
+HEADERS = {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (compatible; Thalpos/6.18)"}
 
 
 def in_quiet_hours(now: datetime, quiet: str) -> bool:

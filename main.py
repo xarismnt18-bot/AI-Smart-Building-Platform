@@ -1,11 +1,11 @@
 """
-Smart Building AI Platform - backend entry point.
+Thalpos - backend entry point.
 
 Usage:
     python main.py            run the FastAPI backend
     python main.py --reload   same, with auto-reload for development
 
-The React dashboard is launched separately (see Run_AIOS_v6.bat).
+The React dashboard is launched separately (see Run_Thalpos.bat).
 """
 import logging
 import sys

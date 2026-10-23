@@ -49,7 +49,7 @@ class TelegramClient:
 
     def send_photo(self, png: bytes, caption: str = "") -> None:
         """Sends a PNG (multipart upload). Raises RuntimeError like send()."""
-        boundary = "aios" + os.urandom(8).hex()
+        boundary = "thalpos" + os.urandom(8).hex()
         parts = []
         for name, value in (("chat_id", str(self._chat_id)), ("caption", caption[:1024])):
             parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
@@ -143,7 +143,7 @@ class AlertNotifier:
         self._load_state()
         self._log("close_open_alerts", set(self._reported))
         for key in self._reported:  # still active from before a restart: make sure the log shows it
-            self._log("alert_started", key, "Active since before AIOS restarted.", self._last_sent.get(key))
+            self._log("alert_started", key, "Active since before Thalpos restarted.", self._last_sent.get(key))
             self._log("alert_notified", key)
         self._stop = threading.Event()
         self._thread = None

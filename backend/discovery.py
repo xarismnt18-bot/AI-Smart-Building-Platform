@@ -3,7 +3,7 @@ Broker discovery beacon.
 
 Every few seconds the backend broadcasts a small UDP packet on the LAN:
 
-    AIOS-BROKER v1 port=1883
+    THALPOS-BROKER v1 port=1883
 
 The ESP8266 listens for it and connects to the sender's IP address, so the
 sensor keeps working when this PC gets a new IP (another Wi-Fi network, a
@@ -15,7 +15,8 @@ import threading
 
 logger = logging.getLogger(__name__)
 
-BEACON_PREFIX = "AIOS-BROKER v1"
+BEACON_PREFIX = "THALPOS-BROKER v1"
+LEGACY_PREFIX = "AIOS-BROKER v1"  # boards flashed before the rename still listen for this
 
 
 def beacon_payload(mqtt_port: int) -> bytes:
@@ -24,7 +25,7 @@ def beacon_payload(mqtt_port: int) -> bytes:
 
 class BrokerBeacon:
     def __init__(self, mqtt_port: int, discovery_port: int, interval_sec: float):
-        self._payload = beacon_payload(mqtt_port)
+        self._payloads = [beacon_payload(mqtt_port), f"{LEGACY_PREFIX} port={mqtt_port}".encode("ascii")]
         self._target = ("255.255.255.255", discovery_port)
         self._interval = interval_sec
         self._stop = threading.Event()
@@ -48,7 +49,8 @@ class BrokerBeacon:
         try:
             while not self._stop.is_set():
                 try:
-                    sock.sendto(self._payload, self._target)
+                    for payload in self._payloads:
+                        sock.sendto(payload, self._target)
                     warned = False
                 except OSError as e:  # no network yet (e.g. Wi-Fi still connecting)
                     if not warned:

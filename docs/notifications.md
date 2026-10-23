@@ -45,7 +45,7 @@ New alerts can be spoken by an Amazon Echo through [Voice Monkey](https://voicem
 
 Only new alerts are spoken, the same alert at most every 6 hours and at most 5 a day (the free plan allows 200 requests a month). Alexa stays silent during its quiet hours (23:00–08:00 by default) and while `/mute` is on. Announcements are in English.
 
-**"Alexa, bedroom status"** needs a paid Voice Monkey plan. With `VOICE_STATUS_ENABLED=1`, Thalpos keeps a sentence such as *"The bedroom is 24 degrees, with 55 percent humidity"* in the Voice Monkey variable `AIOS_STATUS`. Create a Voice Monkey Flow with one Speech node whose text is `{AIOS_STATUS}`, and an Alexa Routine that says *"ask voice monkey to start flow <reference>"* when you say *"bedroom status"*.
+**"Alexa, bedroom status"** needs a paid Voice Monkey plan. With `VOICE_STATUS_ENABLED=1`, Thalpos keeps a sentence such as *"The bedroom is 24 degrees, with 55 percent humidity"* in the Voice Monkey variable `THALPOS_STATUS`. Create a Voice Monkey Flow with one Speech node whose text is `{THALPOS_STATUS}`, and an Alexa Routine that says *"ask voice monkey to start flow <reference>"* when you say *"bedroom status"*.
 
 ## Alert lamp (optional)
 

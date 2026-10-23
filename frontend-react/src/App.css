@@ -1913,3 +1913,15 @@ body { background: var(--bg); font-family: Manrope, system-ui, sans-serif; }
 .imm-presence span { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--muted); }
 .imm-presence.is-in { color: var(--ink); }
 .imm-presence.is-in span { background: #34D399; border-color: #34D399; }
+/* 3D hologram tag above the person in the live room */
+.imm-person-tag {
+  display: flex; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  color: #E0F7FF; background: rgba(4, 18, 28, 0.82); border: 1px solid rgba(125, 227, 255, 0.55);
+  box-shadow: 0 0 14px rgba(125, 227, 255, 0.25);
+}
+.imm-person-tag span { width: 7px; height: 7px; border-radius: 50%; background: #7DE3FF; box-shadow: 0 0 8px #7DE3FF; }
+@media (prefers-reduced-motion: no-preference) {
+  .imm-person-tag span { animation: imm-person-blink 1.6s ease-in-out infinite; }
+}
+@keyframes imm-person-blink { 50% { opacity: 0.35; } }

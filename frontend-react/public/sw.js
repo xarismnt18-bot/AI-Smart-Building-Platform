@@ -1,7 +1,7 @@
-// AIOS service worker: makes the dashboard installable on a phone and shows a
+// Thalpos service worker: makes the dashboard installable on a phone and shows a
 // friendly page when the PC (or the connection) is down. It never caches the
 // app or /api data, so readings are always live and updates show at once.
-const CACHE = "aios-offline-v1";
+const CACHE = "thalpos-offline-v1";
 const OFFLINE = "offline.html";
 
 self.addEventListener("install", (event) => {

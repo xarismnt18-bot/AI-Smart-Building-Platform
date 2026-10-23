@@ -6,7 +6,7 @@ client = TestClient(app)  # no context manager: background threads and MQTT stay
 
 
 def test_root_and_config():
-    assert client.get("/").json()["message"].startswith("Smart Building")
+    assert client.get("/").json()["message"].startswith("Thalpos")
     t = client.get("/config").json()["thresholds"]
     assert t["HUMIDITY_LOW"] < t["HUMIDITY_HIGH"]
 

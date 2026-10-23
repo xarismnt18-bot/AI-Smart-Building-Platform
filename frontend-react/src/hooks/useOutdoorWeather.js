@@ -2,8 +2,19 @@ import { useCallback, useEffect, useState } from "react";
 import { DEMO } from "../config";
 import { fetchOutdoor, ipLocation, placeName } from "../lib/weather";
 
-const PLACE_KEY = "aios_weather_place"; // a place chosen by hand (overrides the device's position)
-const LAST_KEY = "aios_weather_last";   // last known position, so the card fills in instantly
+const PLACE_KEY = "thalpos_weather_place"; // a place chosen by hand (overrides the device's position)
+const LAST_KEY = "thalpos_weather_last";   // last known position, so the card fills in instantly
+
+// keep a place saved before the app was renamed from AIOS
+try {
+  for (const [from, to] of [["aios_weather_place", PLACE_KEY], ["aios_weather_last", LAST_KEY]]) {
+    const old = localStorage.getItem(from);
+    if (old !== null && localStorage.getItem(to) === null) localStorage.setItem(to, old);
+    localStorage.removeItem(from);
+  }
+} catch {
+  // storage blocked: nothing to move
+}
 const REFRESH_MS = 10 * 60 * 1000;
 const DEMO_PLACE = { lat: 37.97, lon: 23.73, name: "Athens", source: "demo" };
 

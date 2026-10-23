@@ -4,7 +4,8 @@ import { OrbitControls } from "@react-three/drei";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import { OptionalBoundary } from "../ui/OptionalBoundary";
 import { homeView, roomView, ROOMS } from "./layout";
-import { Apartment, CameraDirector, DataPath, Ground, LiveRoomEffects, Person, RoomTags } from "./SceneParts";
+import { Apartment, CameraDirector, DataPath, Ground, LiveRoomEffects, RoomTags } from "./SceneParts";
+import { Presence } from "./Presence";
 
 const START = [34, 30, 38]; // far away; the intro flight swoops in from here
 
@@ -55,10 +56,10 @@ function BandFraming({ enabled }) {
 /**
  * Full-bleed 3D home. `liveColor` is null when the sensor has no data,
  * which renders the live room grey with no heat / particles. `presence` shows
- * a figure in the live room while the radar sees someone.
+ * a hologram in the live room while the radar sees someone.
  */
 export default function ImmersiveScene({
-  liveName, liveColor, liveText, view, focus, selected, onSelect, alert, packetSeq, status, reduced, narrow, presence,
+  liveName, liveColor, liveText, view, focus, selected, onSelect, alert, packetSeq, status, reduced, narrow, presence, presenceSince,
 }) {
   const controls = useRef();
   const camView = useMemo(() => {
@@ -82,7 +83,7 @@ export default function ImmersiveScene({
       <Ground reduced={reduced} />
       <Apartment liveColor={liveColor} alert={Boolean(alert)} reduced={reduced} selected={selected} onSelect={onSelect} xray={view === "xray"} />
       {liveColor && <LiveRoomEffects color={liveColor} view={view} alert={alert} reduced={reduced} />}
-      <Person present={Boolean(presence)} reduced={reduced} />
+      <Presence present={Boolean(presence)} since={presenceSince} reduced={reduced} />
       <DataPath packetSeq={packetSeq} status={status} reduced={reduced} />
       <RoomTags liveName={liveName} liveText={liveText} liveHasData={Boolean(liveColor)} alert={Boolean(alert)} />
 

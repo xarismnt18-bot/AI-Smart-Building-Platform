@@ -40,17 +40,17 @@ def test_publisher_pushes_only_changes(thresholds):
 
     def fake_urlopen(req, timeout):
         calls.append(json.loads(req.data))
-        assert "AIOS" in req.headers["User-agent"]  # Cloudflare blocks Python's default UA
+        assert "Thalpos" in req.headers["User-agent"]  # Cloudflare blocks Python's default UA
         return _Resp(b'{"success": true}')
 
     sensor = FakeSensor(reading(22, 50))
-    p = V.VoiceStatusPublisher(V.VoiceAnnouncer("tok", "dev", ""), sensor, FakeSettings(thresholds), "AIOS_STATUS", 60)
+    p = V.VoiceStatusPublisher(V.VoiceAnnouncer("tok", "dev", ""), sensor, FakeSettings(thresholds), "THALPOS_STATUS", 60)
     with mock.patch("urllib.request.urlopen", fake_urlopen):
         assert p.publish() and not p.publish()
         sensor.latest = reading(23, 50)
         assert p.publish()
         p.stop()  # never started: must not spend a request
-    assert len(calls) == 2 and calls[0]["variable"] == "AIOS_STATUS"
+    assert len(calls) == 2 and calls[0]["variable"] == "THALPOS_STATUS"
 
 
 def test_voice_budget():

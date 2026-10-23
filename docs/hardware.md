@@ -68,7 +68,7 @@ To add the network the laptop is connected to right now, plug the board in by US
 | How | Script | Notes |
 |-----|--------|-------|
 | USB | `flash_esp.bat` | Finds the board's COM port by itself (ignores Bluetooth ports). Close the Arduino serial monitor first |
-| Wi-Fi (OTA) | `flash_ota.bat` | After the first USB upload. Host `aios-bedroom.local`, or pass the IP: `flash_ota.bat 192.168.1.50`. Run `allow_ota.bat` once so the firewall lets the board connect back on TCP 48266 |
+| Wi-Fi (OTA) | `flash_ota.bat` | After the first USB upload. Host `thalpos-bedroom.local`, or pass the IP: `flash_ota.bat 192.168.1.50`. Run `allow_ota.bat` once so the firewall lets the board connect back on TCP 48266 |
 
 Both compile with the `arduino-cli` bundled in Arduino IDE, install the needed libraries (PubSubClient, DHT sensor library, Adafruit SSD1306 and GFX) and write `flash_esp.log`.
 

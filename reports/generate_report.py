@@ -27,7 +27,7 @@ def generate_simple_report() -> str | None:
     avg_power = round(df["power"].mean(), 1)
 
     report = f"""
-Smart Building AI Report (simulated data, {len(df)} rows)
+Thalpos Report (simulated data, {len(df)} rows)
 
 Average CO2 level: {avg_co2} ppm
 Average power consumption: {avg_power} W

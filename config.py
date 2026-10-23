@@ -1,5 +1,5 @@
 """
-Central configuration for Smart Building AI Platform.
+Central configuration for Thalpos.
 Defaults live here; override any of them via the .env file.
 
 Alert thresholds below are only the *initial* values: once changed from the
@@ -79,7 +79,7 @@ VOICEMONKEY_TOKEN = os.getenv("VOICEMONKEY_TOKEN") or None
 VOICEMONKEY_DEVICE = os.getenv("VOICEMONKEY_DEVICE") or None
 VOICE_QUIET_HOURS = os.getenv("VOICE_QUIET_HOURS", "23:00-08:00")
 # "Alexa, bedroom status": the sentence is kept in this Voice Monkey variable
-VOICE_STATUS_VAR = os.getenv("VOICE_STATUS_VAR", "AIOS_STATUS")
+VOICE_STATUS_VAR = os.getenv("VOICE_STATUS_VAR", "THALPOS_STATUS")
 # Off by default: each update is a Voice Monkey request and the free plan allows
 # only 200 a month. Turn on (VOICE_STATUS_ENABLED=1) on a paid plan.
 VOICE_STATUS_ENABLED = os.getenv("VOICE_STATUS_ENABLED", "0") == "1"

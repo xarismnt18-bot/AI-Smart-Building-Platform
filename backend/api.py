@@ -79,7 +79,7 @@ async def lifespan(app: FastAPI):
     sensor.stop()
 
 
-app = FastAPI(title="Smart Building AI OS API", version="6.18.0", lifespan=lifespan)
+app = FastAPI(title="Thalpos API", version="6.18.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -97,7 +97,7 @@ app.add_middleware(
 def root():
     latest = sensor.latest
     return {
-        "message": "Smart Building AI OS API is running",
+        "message": "Thalpos API is running",
         "version": app.version,
         "mqtt_topic": sensor.topic,
         "broker": sensor.broker,
@@ -109,7 +109,8 @@ def root():
 
 @app.get("/latest")
 def get_latest():
-    return sensor.latest
+    since = presence.since
+    return {**sensor.latest, "presence_since": round(since) if since else None}
 
 
 @app.get("/history")
@@ -126,7 +127,7 @@ def get_history_range(hours: float = Query(12, gt=0, le=24 * 30), step: int = Qu
 @app.get("/history.csv", response_class=PlainTextResponse)
 def get_history_csv(hours: float = Query(24, gt=0, le=24 * 30)):
     """Every stored reading of the last `hours` as a CSV download."""
-    name = f"aios_history_{datetime.now():%Y%m%d_%H%M}.csv"
+    name = f"thalpos_history_{datetime.now():%Y%m%d_%H%M}.csv"
     return PlainTextResponse(history_store.csv(time.time() - hours * 3600), media_type="text/csv",
                              headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
@@ -246,9 +247,9 @@ def unmute_notifications():
 
 @app.post("/notifications/test")
 def send_test_notification():
-    room = sensor.latest.get("room") or "AIOS"
+    room = sensor.latest.get("room") or "Thalpos"
     try:
-        notifier.telegram.send(f"👋 Test from AIOS: Telegram alerts for {room} are working.")
+        notifier.telegram.send(f"👋 Test from Thalpos: Telegram alerts for {room} are working.")
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
     return {"sent": True}
