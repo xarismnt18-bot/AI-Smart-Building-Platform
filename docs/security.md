@@ -10,5 +10,5 @@
 
 Known limits:
 
-- **Discovery beacon.** A device already on your Wi-Fi could fake the beacon and make the board try to log in to it. On a network you don't trust, set `DISCOVERY_ENABLED=false` and a fixed `MQTT_SERVER`.
+- **Discovery beacon.** The beacon is signed with a key shared by the backend and the board (`DISCOVERY_KEY`, created by `setup_security.bat` or `tools/discovery_key.py`, kept in `mqtt_credentials.env` and `secrets.h`). The board ignores beacons with a wrong signature or sent from a different address than the one they name, so another device on the Wi-Fi cannot redirect it to a fake broker. To turn discovery off completely, add `#define DISCOVERY_ENABLED 0` to `secrets.h`, reflash, and set a fixed `MQTT_SERVER`.
 - **MQTT on the LAN is not encrypted**, because the ESP8266 is too small for comfortable TLS. The password login still stops other devices from reading or injecting data.

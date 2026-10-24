@@ -9,6 +9,11 @@ Everything Thalpos does with the mmWave radar's presence flag:
 The radar can flicker, so a change must hold before it counts:
 ENTER_HOLD_SEC for "someone came in", LEAVE_HOLD_SEC for "room is empty"
 (someone sitting very still can briefly look like an empty room).
+
+When the radar stops reporting (sensor offline, no radar), presence is
+unknown: after UNKNOWN_HOLD_SEC an open visit is closed at the last valid
+reading, so time without data is never counted as time in the room, and no
+"empty" message is sent because nobody knows whether the room is empty.
 Messages respect the Telegram /mute pause and the enter/leave quiet hours.
 """
 import logging
@@ -22,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 ENTER_HOLD_SEC = 5
 LEAVE_HOLD_SEC = 60
+UNKNOWN_HOLD_SEC = 60         # radar silent this long: presence becomes unknown
 CHECK_SEC = 2
 
 AIR_AFTER_SEC = 2 * 3600      # remind only after someone has been in this long
@@ -75,6 +81,8 @@ class PresenceWatcher:
         self._candidate: bool | None = None
         self._candidate_at = 0.0
         self._last_raw: bool | None = None    # for the log only
+        self._unknown_since: float | None = None   # radar silent since (monotonic)
+        self._last_valid_ts: float | None = None   # wall time of the last presence reading
         self._aired_this_stay = False
         self._air_checked_at = -1e9
         self._stop = threading.Event()
@@ -127,9 +135,13 @@ class PresenceWatcher:
         wall = wall or datetime.now()
         latest = self._sensor.latest
         present = latest.get("presence")
-        if not isinstance(present, bool):   # no radar, or sensor offline: keep what we knew
+        if not isinstance(present, bool):   # no radar, or sensor offline
             self._candidate = None
+            self._check_unknown(now)
             return None
+        self._unknown_since = None
+        age = latest.get("seconds_since_update")
+        self._last_valid_ts = wall.timestamp() - (age if isinstance(age, (int, float)) else 0)
         if present != self._last_raw:
             logger.info("Radar: %s", "someone there" if present else "nobody")
             self._last_raw = present
@@ -160,6 +172,24 @@ class PresenceWatcher:
         text = message(present, latest.get("room") or "room", wall, stayed)
         self._send(text, wall, self.on)
         return text
+
+    def _check_unknown(self, now: float) -> None:
+        """Radar silent: after a grace period, forget the state and close the visit."""
+        if self._state is None:
+            return
+        if self._unknown_since is None:
+            self._unknown_since = now
+            return
+        if now - self._unknown_since < UNKNOWN_HOLD_SEC:
+            return
+        if self._state:
+            self._log("visit_ended", self._last_valid_ts)
+            logger.info("Radar silent: presence unknown, visit closed at the last reading")
+        else:
+            logger.info("Radar silent: presence unknown")
+        self._state, self._since, self._stay_from = None, None, None
+        self._aired_this_stay = False
+        self._unknown_since = None
 
     # ---------- airing reminder ----------
     def _check_airing(self, now: float, wall: datetime, latest: dict) -> str | None:

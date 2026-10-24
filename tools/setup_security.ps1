@@ -108,6 +108,10 @@ try {
         Log "Added ESP8266 broker login to firmware secrets.h"
     } else { Log "WARN: secrets.h not found - add MQTT_USER/MQTT_PASS manually" }
 
+    # --- 4b. discovery key: the board only trusts beacons signed with it ----
+    $keyOut = & $Py (Join-Path $Root "tools\discovery_key.py") 2>&1
+    $keyOut | ForEach-Object { Log "KEY $_" }
+
     # --- 5. verify: anonymous rejected, backend login accepted --------------
     $test = @"
 import paho.mqtt.client as mqtt, sys, time

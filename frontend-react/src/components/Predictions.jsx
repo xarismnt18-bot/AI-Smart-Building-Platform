@@ -4,7 +4,8 @@ import { apiGet } from "../config";
 function TrendArrow({ trend }) {
   if (trend === "rising") return <span style={{ color: "#ef4444" }}>↗ RISING</span>;
   if (trend === "falling") return <span style={{ color: "#22c55e" }}>↘ FALLING</span>;
-  return <span style={{ color: "#22d3ee" }}>→ STABLE</span>;
+  if (trend === "stable") return <span style={{ color: "#22d3ee" }}>→ STABLE</span>;
+  return <span style={{ color: "#94a3b8" }}>— NO FORECAST</span>;
 }
 
 function RiskBadge({ risk }) {
@@ -71,9 +72,21 @@ function PredictionCard({ label, current, predicted, confidence, trend, risk, un
   );
 }
 
+function statusOf(preds, offline) {
+  if (offline) return { text: "API OFFLINE", color: "#ef4444" };
+  if (!preds) return { text: "WAITING", color: "#94a3b8" };
+  if (preds.stale) {
+    const age = preds.data_age_sec;
+    const since = age == null ? "" : ` · ${age < 120 ? `${Math.round(age)} s` : `${Math.round(age / 60)} min`}`;
+    return { text: `NO RECENT DATA${since}`, color: "#f59e0b" };
+  }
+  return { text: "ACTIVE", color: "#22c55e" };
+}
+
 export default function Predictions() {
   const [preds, setPreds] = useState(null);
   const [recs, setRecs] = useState([]);
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -81,8 +94,13 @@ export default function Predictions() {
         const [p, r] = await Promise.all([apiGet("/predictions"), apiGet("/recommendations")]);
         setPreds(p);
         setRecs(r.recommendations || []);
+        setOffline(false);
       } catch (e) {
+        // Never keep showing an old forecast as if it were live.
         console.log("Prediction API offline:", e);
+        setOffline(true);
+        setPreds(null);
+        setRecs([]);
       }
     }
     load();
@@ -92,6 +110,7 @@ export default function Predictions() {
 
   const tp = preds?.temperature || {};
   const hp = preds?.humidity || {};
+  const status = statusOf(preds, offline);
 
   return (
     <div className="module-page">
@@ -131,7 +150,7 @@ export default function Predictions() {
           </div>
           <div>
             <span className="kpi-label">STATUS</span>
-            <span style={{ fontFamily: "Oxanium", fontSize: 16, color: preds ? "#22c55e" : "#ef4444" }}>{preds ? "ACTIVE" : "API OFFLINE"}</span>
+            <span style={{ fontFamily: "Oxanium", fontSize: 16, color: status.color }}>{status.text}</span>
           </div>
         </div>
       </div>
@@ -140,7 +159,7 @@ export default function Predictions() {
       <div className="module-card" style={{ marginTop: 18 }}>
         <h3>SMART RECOMMENDATIONS</h3>
         {recs.length === 0 ? (
-          <p style={{ color: "#94a3b8" }}>Waiting for data...</p>
+          <p style={{ color: "#94a3b8" }}>{offline ? "The backend is not answering." : "Waiting for data..."}</p>
         ) : (
           <div className="rec-list">
             {recs.map((r, i) => {

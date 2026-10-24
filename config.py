@@ -48,6 +48,9 @@ SENSOR_STALE_SEC = int(os.getenv("SENSOR_STALE_SEC", "30"))
 DISCOVERY_ENABLED = _env_bool("DISCOVERY_ENABLED", True)
 DISCOVERY_PORT = int(os.getenv("DISCOVERY_PORT", "18831"))
 DISCOVERY_INTERVAL_SEC = float(os.getenv("DISCOVERY_INTERVAL_SEC", "3"))
+# Signs the beacon so the board only trusts this PC (tools/discovery_key.py writes it
+# to mqtt_credentials.env and the firmware's secrets.h).
+DISCOVERY_KEY = os.getenv("DISCOVERY_KEY") or None
 
 
 # =========================

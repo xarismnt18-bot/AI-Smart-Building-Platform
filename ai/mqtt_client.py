@@ -9,6 +9,7 @@ ESP8266 shows as offline even while the broker is still reachable.
 """
 import json
 import logging
+import math
 import os
 import sys
 import threading
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 # Physical limits of the DHT11/DHT22 family; anything outside is a bad read.
 TEMP_RANGE = (-40.0, 80.0)
 HUMIDITY_RANGE = (0.0, 100.0)
+RSSI_RANGE = (-127, 0)   # Wi-Fi signal in dBm as the ESP8266 reports it
 DEFAULT_ROOM = "My Room"
 
 
@@ -44,9 +46,11 @@ def parse_payload(raw: bytes | str) -> dict:
     """
     try:
         payload = json.loads(raw)
-        temperature = float(payload["temperature"])
-        humidity = float(payload["humidity"])
-    except (ValueError, TypeError, KeyError) as e:
+        if not isinstance(payload, dict):
+            raise TypeError("payload is not a JSON object")
+        temperature = _number(payload["temperature"])
+        humidity = _number(payload["humidity"])
+    except (ValueError, TypeError, KeyError, OverflowError) as e:
         raise InvalidPacket(f"unreadable payload: {e}") from e
 
     if not TEMP_RANGE[0] <= temperature <= TEMP_RANGE[1]:
@@ -64,9 +68,32 @@ def parse_payload(raw: bytes | str) -> dict:
     for key in ("sensor", "fw", "wifi", "ip"):
         if isinstance(payload.get(key), str) and payload[key]:
             reading[key] = payload[key][:40]
-    if isinstance(payload.get("rssi"), (int, float)):
-        reading["rssi"] = int(payload["rssi"])
+    rssi = _optional_number(payload.get("rssi"))
+    if rssi is not None and RSSI_RANGE[0] <= rssi <= RSSI_RANGE[1]:
+        reading["rssi"] = int(round(rssi))
+    elif "rssi" in payload:
+        logger.debug("Dropping invalid rssi field: %r", payload.get("rssi"))
     return reading
+
+
+def _number(value) -> float:
+    """A finite number; bools and strings like "NaN" are rejected."""
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise TypeError(f"not a number: {value!r}")
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"not a finite number: {value!r}")
+    return number
+
+
+def _optional_number(value) -> float | None:
+    """Like _number, but an optional field that is broken is simply left out."""
+    if value is None:
+        return None
+    try:
+        return _number(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 class SharedMQTTClient:
@@ -190,4 +217,10 @@ class SharedMQTTClient:
         logger.warning("MQTT disconnected (%s) - will retry automatically", reason_code)
 
     def _on_message(self, client, userdata, msg):
-        self.ingest(msg.payload)
+        # Nothing a packet contains may stop paho's receive loop.
+        try:
+            self.ingest(msg.payload)
+        except Exception:
+            logger.exception("Unexpected error while handling an MQTT packet")
+            with self._lock:
+                self._invalid_packets += 1

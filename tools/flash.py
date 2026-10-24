@@ -102,6 +102,14 @@ def main() -> int:
     if not os.path.exists(CLI):
         log(f"arduino-cli not found at {CLI}")
         return 1
+    try:  # the board must know the key the backend signs its beacon with
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from discovery_key import ensure
+        if ensure() != "ok":
+            log("Discovery key written to secrets.h and mqtt_credentials.env: restart Thalpos so the backend uses it.")
+    except FileNotFoundError as e:
+        log(str(e))
+        return 1
     if not compile_sketch():
         log("COMPILE FAILED: nothing was uploaded.")
         return 1

@@ -157,3 +157,46 @@ def test_no_airing_reminder_when_humidity_is_steady():
     step(w, sensor, True, 0)
     step(w, sensor, True, AIR_AFTER_SEC + 100)
     assert not any("Open the window" in m for m in tg.sent)
+
+
+class TimedHistory(FakeHistory):
+    def visit_started(self, ts):
+        self.events.append(("in", ts))
+
+    def visit_ended(self, ts):
+        self.events.append(("out", ts))
+
+
+def test_radar_silence_closes_the_visit_at_the_last_reading():
+    from backend.presence import UNKNOWN_HOLD_SEC
+    h = TimedHistory()
+    w, tg, sensor = make_with(h)
+    t0 = NOON.timestamp()
+    step(w, sensor, True, 0)                                  # someone in at start-up
+    step(w, sensor, True, 600, datetime.fromtimestamp(t0 + 600))
+    for t in (602, 602 + UNKNOWN_HOLD_SEC / 2, 602 + UNKNOWN_HOLD_SEC):   # sensor goes offline
+        step(w, sensor, None, t, datetime.fromtimestamp(t0 + t))
+    assert h.events[-1] == ("out", t0 + 600)                  # ends at the last valid reading
+    assert w.empty is False and w.occupied is False and w.since is None
+    assert tg.sent == []                                      # unknown is not "empty"
+
+
+def test_short_radar_gap_keeps_the_visit():
+    h = TimedHistory()
+    w, tg, sensor = make_with(h)
+    step(w, sensor, True, 0)
+    step(w, sensor, None, 10)
+    step(w, sensor, None, 30)
+    step(w, sensor, True, 40)
+    assert [e for e, _ in h.events] == ["in"] and w.occupied
+
+
+def test_presence_returning_after_unknown_starts_a_new_visit_silently():
+    from backend.presence import UNKNOWN_HOLD_SEC
+    h = TimedHistory()
+    w, tg, sensor = make_with(h)
+    step(w, sensor, True, 0)
+    step(w, sensor, None, 10)
+    step(w, sensor, None, 10 + UNKNOWN_HOLD_SEC)
+    step(w, sensor, True, 500)
+    assert [e for e, _ in h.events] == ["in", "out", "in"] and tg.sent == []

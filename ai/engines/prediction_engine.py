@@ -8,8 +8,13 @@ index), so the forecast horizon is correct whatever the sensor's send rate.
 Confidence comes from the fit itself: the weighted residual spread is
 widened for how far we extrapolate beyond the observed window, then
 mapped to 0-100 relative to a metric-specific tolerance.
+
+A forecast is only made from fresh data: if the newest sample is older than
+`max_age_sec`, the result is marked stale and carries no prediction, so an
+offline sensor can never look like an active forecast.
 """
 import math
+import time
 
 import numpy as np
 
@@ -21,9 +26,10 @@ TREND_PER_MIN = {"temperature": 0.1, "humidity": 0.5}
 TOLERANCE = {"temperature": 1.0, "humidity": 5.0}
 MIN_POINTS = 3
 MIN_SPAN_SEC = 30
+MAX_DATA_AGE_SEC = 120   # newest sample older than this: no forecast
 
 
-def _unknown(current=None, points=0) -> dict:
+def _unknown(current=None, points=0, data_age=None, stale=False) -> dict:
     return {
         "current": current,
         "predicted": None,
@@ -31,6 +37,8 @@ def _unknown(current=None, points=0) -> dict:
         "trend": "unknown",
         "risk": "unknown",
         "data_points": points,
+        "data_age_sec": data_age,
+        "stale": stale,
     }
 
 
@@ -43,11 +51,15 @@ def risk_level(value: float, warn: float, crit: float) -> str:
 
 
 class PredictionEngine:
-    def __init__(self, minutes_ahead: int = 10, lookback_min: int = 20):
+    def __init__(self, minutes_ahead: int = 10, lookback_min: int = 20,
+                 max_age_sec: float = MAX_DATA_AGE_SEC):
         self.minutes_ahead = minutes_ahead
         self.lookback_min = lookback_min
+        self.max_age_sec = max_age_sec
 
-    def predict_metric(self, history: list[dict], metric: str, thresholds: Thresholds) -> dict:
+    def predict_metric(self, history: list[dict], metric: str, thresholds: Thresholds,
+                       now: float | None = None) -> dict:
+        now = time.time() if now is None else now
         samples = [(h["ts"], float(h[metric])) for h in history
                    if h.get("ts") is not None and h.get(metric) is not None]
         current = samples[-1][1] if samples else None
@@ -55,10 +67,14 @@ class PredictionEngine:
             return _unknown()
 
         t_last = samples[-1][0]
+        data_age = round(max(0.0, now - t_last), 1)
+        if data_age > self.max_age_sec:
+            return _unknown(current, 0, data_age, stale=True)
+
         window = [(t, v) for t, v in samples if t_last - t <= self.lookback_min * 60]
         span = t_last - window[0][0]
         if len(window) < MIN_POINTS or span < MIN_SPAN_SEC:
-            return _unknown(current, len(window))
+            return _unknown(current, len(window), data_age)
 
         x = np.array([t - t_last for t, _ in window])  # seconds, <= 0
         y = np.array([v for _, v in window])
@@ -91,14 +107,22 @@ class PredictionEngine:
             "slope_per_min": round(slope_per_min, 3) + 0.0,
             "risk": risk_level(predicted, warn, crit),
             "data_points": len(window),
+            "data_age_sec": data_age,
+            "stale": False,
         }
 
-    def predict_all(self, history: list[dict], thresholds: Thresholds) -> dict:
-        temp = self.predict_metric(history, "temperature", thresholds)
-        hum = self.predict_metric(history, "humidity", thresholds)
+    def predict_all(self, history: list[dict], thresholds: Thresholds,
+                    now: float | None = None) -> dict:
+        now = time.time() if now is None else now
+        temp = self.predict_metric(history, "temperature", thresholds, now)
+        hum = self.predict_metric(history, "humidity", thresholds, now)
+        ages = [p["data_age_sec"] for p in (temp, hum) if p["data_age_sec"] is not None]
         return {
             "temperature": temp,
             "humidity": hum,
             "minutes_ahead": self.minutes_ahead,
             "data_points": max(temp["data_points"], hum["data_points"]),
+            "generated_at": round(now, 1),
+            "data_age_sec": min(ages) if ages else None,
+            "stale": temp["stale"] or hum["stale"] or not ages,
         }

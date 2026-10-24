@@ -23,6 +23,8 @@ Run `setup_telegram.bat` and follow the prompts: create a bot with @BotFather, p
 
 **Comfort alerts only while someone is in.** While the radar says the room is empty, too hot, too cold, too humid or too dry alerts wait: they are sent when someone comes in, if the problem is still there. Critical levels (mold-risk humidity, heat) and sensor problems always come through. The dashboard shows every alert either way.
 
+If the radar stops reporting (sensor offline) for a minute, presence becomes *unknown*: no message is sent, and the current visit is closed at the last reading, so offline time never counts as time in the room.
+
 All three are in **Settings → Alerts & quiet hours → Someone in the room**.
 
 **Morning summary.** Every day at 09:00 (`DAILY_SUMMARY_TIME`) the bot sends yesterday's range with a chart and how long each limit was crossed.

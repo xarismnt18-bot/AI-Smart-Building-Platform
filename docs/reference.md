@@ -17,7 +17,7 @@ The backend listens on `http://127.0.0.1:8000` (the dashboard reaches it at `/ap
 | `/alerts` | GET | Active alerts |
 | `/alerts/history?days=7` | GET | Alert log, newest first |
 | `/presence/daily?days=7` | GET | Minutes someone was in the room per day, and whether someone is in now |
-| `/predictions` | GET | 10-minute forecasts for temperature and humidity |
+| `/predictions` | GET | 10-minute forecasts for temperature and humidity, with `generated_at` and `data_age_sec`. When the newest reading is over 2 minutes old the result is `stale: true` and carries no forecast |
 | `/recommendations` | GET | Suggested actions |
 | `/config` | GET / PUT / DELETE | Read, update (partial JSON) or reset the thresholds |
 | `/notifications` | GET / PUT | Channels set up, pause state, and the on/off and quiet-hours settings (`voice_on`, `voice_quiet_hours`, `lamp_auto`, `lamp_quiet_hours`, `presence_on`, `presence_quiet_hours`, `alerts_only_present`, `airing_reminder`) |

@@ -7,6 +7,9 @@
 // v3: SHT31 temperature/humidity on I2C (found automatically; falls back to the
 // DHT11 on D4 when it isn't there), mmWave presence radar on D5, and a 0.96"
 // OLED that shows the readings on the device.
+// v3.1: the broker beacon must be signed (HMAC-SHA256 with DISCOVERY_KEY from
+// secrets.h) and come from the address it names; DISCOVERY_ENABLED 0 turns
+// discovery off completely.
 //
 // Wiring (NodeMCU):  SHT31 + OLED: SDA -> D2, SCL -> D1, VCC -> 3V3, GND -> GND
 //                    radar: OT1/OUT -> D5, 3V3 -> 3V3, GND -> GND
@@ -19,7 +22,12 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <bearssl/bearssl_hmac.h>
 #include "secrets.h"
+
+#ifndef DISCOVERY_ENABLED
+#define DISCOVERY_ENABLED 1   // set 0 in secrets.h to always use MQTT_SERVER
+#endif
 
 #define DHTPIN D4
 #define DHTTYPE DHT11
@@ -27,17 +35,23 @@
 const bool HAS_RADAR = true;   // set false if no radar is wired (the pin would float)
 
 const char* ROOM_NAME = "Bedroom";
-const char* FIRMWARE_VERSION = "3.0";
+const char* FIRMWARE_VERSION = "3.1";
 const char* OTA_HOSTNAME = "thalpos-bedroom";   // reachable as thalpos-bedroom.local
 const unsigned long PUBLISH_INTERVAL_MS = 3000;   // the DHT11 fallback needs >= 1 s between reads
 const unsigned long MQTT_RETRY_MS = 3000;
 
-// Broker discovery: the Thalpos backend broadcasts "THALPOS-BROKER v1 port=1883" on
-// this UDP port. The board connects to whoever sent it, so a new IP on the PC
-// no longer breaks the sensor. MQTT_SERVER in secrets.h is only the first guess.
+// Broker discovery: the Thalpos backend broadcasts
+//   "THALPOS-BROKER v2 port=1883 ip=192.168.1.23 sig=<hmac>"
+// on this UDP port, so a new IP on the PC no longer breaks the sensor.
+// The board only follows a beacon whose HMAC-SHA256 (keyed with DISCOVERY_KEY)
+// is valid and whose ip= is the sender. MQTT_SERVER in secrets.h is the first guess.
 const uint16_t DISCOVERY_PORT = 18831;
-const char* BEACON_PREFIX = "THALPOS-BROKER v1";
-const char* OLD_BEACON_PREFIX = "AIOS-BROKER v1";   // backends from before the rename
+const char* BEACON_PREFIX = "THALPOS-BROKER v2 ";
+#if DISCOVERY_ENABLED && defined(DISCOVERY_KEY)
+const bool DISCOVERY_ON = true;
+#else
+const bool DISCOVERY_ON = false;
+#endif
 WiFiUDP discovery;
 IPAddress brokerIp;
 uint16_t brokerPort = MQTT_PORT;
@@ -122,23 +136,75 @@ void ensureMqtt() {
   }
 }
 
+#if DISCOVERY_ENABLED && defined(DISCOVERY_KEY)
+int hexValue(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  return -1;
+}
+
+// True when sigHex is the HMAC-SHA256 of body[0..bodyLen) with DISCOVERY_KEY.
+bool signatureValid(const char* body, size_t bodyLen, const char* sigHex) {
+  static uint8_t key[64];
+  size_t keyLen = strlen(DISCOVERY_KEY) / 2;
+  if (keyLen == 0 || keyLen > sizeof(key) || strlen(sigHex) != 64) return false;
+  for (size_t i = 0; i < keyLen; i++) {
+    int hi = hexValue(DISCOVERY_KEY[2 * i]), lo = hexValue(DISCOVERY_KEY[2 * i + 1]);
+    if (hi < 0 || lo < 0) return false;
+    key[i] = (uint8_t) (hi * 16 + lo);
+  }
+  br_hmac_key_context kc;
+  br_hmac_context ctx;
+  br_hmac_key_init(&kc, &br_sha256_vtable, key, keyLen);
+  br_hmac_init(&ctx, &kc, 0);
+  br_hmac_update(&ctx, body, bodyLen);
+  uint8_t mac[32];
+  br_hmac_out(&ctx, mac);
+
+  uint8_t diff = 0;   // constant time: don't leak how much of a guess was right
+  for (int i = 0; i < 32; i++) {
+    int hi = hexValue(sigHex[2 * i]), lo = hexValue(sigHex[2 * i + 1]);
+    if (hi < 0 || lo < 0) return false;
+    diff |= mac[i] ^ (uint8_t) (hi * 16 + lo);
+  }
+  return diff == 0;
+}
+#endif
+
 // Reads one pending beacon, if any. Switches broker when the PC's IP changed.
 void listenForBroker() {
+#if DISCOVERY_ENABLED && defined(DISCOVERY_KEY)
   int size = discovery.parsePacket();
   if (size <= 0) return;
 
-  char buf[64];
+  char buf[192];
   int len = discovery.read(buf, sizeof(buf) - 1);
   if (len <= 0) return;
   buf[len] = '\0';
-  if (strncmp(buf, BEACON_PREFIX, strlen(BEACON_PREFIX)) != 0 &&
-      strncmp(buf, OLD_BEACON_PREFIX, strlen(OLD_BEACON_PREFIX)) != 0) return;
+  if (strncmp(buf, BEACON_PREFIX, strlen(BEACON_PREFIX)) != 0) return;
 
-  uint16_t port = MQTT_PORT;
-  const char* p = strstr(buf, "port=");
-  if (p) port = (uint16_t) atoi(p + 5);
+  char* sig = strstr(buf, " sig=");
+  if (!sig) return;
+  size_t bodyLen = sig - buf;
+  if (!signatureValid(buf, bodyLen, sig + 5)) {
+    Serial.println("Ignoring a broker beacon with a bad signature");
+    return;
+  }
+  *sig = '\0';   // from here on, only the signed part is read
 
   IPAddress from = discovery.remoteIP();
+  const char* ipField = strstr(buf, " ip=");
+  IPAddress named;
+  if (!ipField || !named.fromString(ipField + 4) || named != from) {
+    Serial.println("Ignoring a signed beacon sent from another address");
+    return;
+  }
+
+  uint16_t port = MQTT_PORT;
+  const char* p = strstr(buf, " port=");
+  if (p) port = (uint16_t) atoi(p + 6);
+  if (port == 0) return;
   if (brokerDiscovered && from == brokerIp && port == brokerPort) return;
 
   brokerIp = from;
@@ -152,6 +218,7 @@ void listenForBroker() {
   client.disconnect();
   client.setServer(brokerIp, brokerPort);
   lastMqttAttempt = 0;   // try the new address right away
+#endif
 }
 
 // ---------- SHT31 (plain I2C, no library) ----------
@@ -309,7 +376,12 @@ void setup() {
   // Unique per board, so two nodes never kick each other off the broker.
   clientId = "ESP8266_THALPOS_" + String(ESP.getChipId(), HEX);
   client.setServer(MQTT_SERVER, MQTT_PORT);
-  discovery.begin(DISCOVERY_PORT);
+  if (DISCOVERY_ON) {
+    discovery.begin(DISCOVERY_PORT);
+    Serial.println("Broker discovery: signed beacons only");
+  } else {
+    Serial.println("Broker discovery off: using MQTT_SERVER from secrets.h");
+  }
 }
 
 void loop() {

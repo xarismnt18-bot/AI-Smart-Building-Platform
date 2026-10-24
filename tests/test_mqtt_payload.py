@@ -30,3 +30,31 @@ def test_latest_reports_presence_and_sensor():
 def test_invalid_still_rejected():
     with pytest.raises(InvalidPacket):
         parse_payload('{"temperature":200,"humidity":50}')
+
+
+@pytest.mark.parametrize("rssi", ["NaN", "1e999", "-1e999", "true", '"strong"', "-500", "12"])
+def test_broken_rssi_is_dropped_not_fatal(rssi):
+    r = parse_payload('{"temperature":20,"humidity":50,"rssi":%s}' % rssi)
+    assert "rssi" not in r and r["temperature"] == 20
+
+
+@pytest.mark.parametrize("payload", [
+    '{"temperature":NaN,"humidity":50}', '{"temperature":1e999,"humidity":50}',
+    '{"temperature":true,"humidity":50}', '[1,2]', '"text"', '{"temperature":20}',
+])
+def test_bad_climate_values_are_rejected(payload):
+    with pytest.raises(InvalidPacket):
+        parse_payload(payload)
+
+
+def test_unexpected_error_does_not_escape_the_callback(monkeypatch):
+    c = SharedMQTTClient()
+
+    def boom(raw):
+        raise RuntimeError("bug")
+    monkeypatch.setattr(c, "ingest", boom)
+
+    class Msg:
+        payload = b"{}"
+    c._on_message(None, None, Msg())          # must not raise
+    assert c.latest["invalid_packets"] == 1

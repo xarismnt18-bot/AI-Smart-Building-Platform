@@ -105,7 +105,11 @@ function predictions() {
   const t = thresholds;
   const temperature = forecast("temperature", t.TEMP_HIGH, t.TEMP_CRITICAL);
   const humidity = forecast("humidity", t.HUMIDITY_HIGH, t.HUMIDITY_CRITICAL);
-  return { temperature, humidity, minutes_ahead: 10, data_points: Math.max(temperature.data_points, humidity.data_points) };
+  return {
+    temperature, humidity, minutes_ahead: 10,
+    data_points: Math.max(temperature.data_points, humidity.data_points),
+    generated_at: Date.now() / 1000, data_age_sec: 0, stale: false,
+  };
 }
 
 function recommendations() {

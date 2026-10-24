@@ -23,3 +23,9 @@
 // Broker login (setup_security.bat generates these and appends them to secrets.h)
 #define MQTT_USER     "esp8266"
 #define MQTT_PASS     "change-me"
+
+// Broker discovery key (setup_security.bat / tools/discovery_key.py write it).
+// The board only follows beacons signed with it. Without a key, or with
+// DISCOVERY_ENABLED 0, the board always uses MQTT_SERVER above.
+// #define DISCOVERY_KEY "64 hex characters"
+// #define DISCOVERY_ENABLED 0
