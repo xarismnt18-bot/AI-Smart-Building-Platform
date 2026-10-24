@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 STARTUP_GRACE_SEC = 60
 CONNECTIVITY_KEYS = {"broker_offline", "sensor_offline"}
 SILENT_KEYS = {"sensor_stuck"}  # Telegram only: not worth waking Alexa for
+COMFORT_KEYS = {"temp_high", "temp_low", "humidity_high", "humidity_low"}  # can wait until someone is in
 REMEMBER_SEC = 24 * 3600  # alerts sent before a restart are not sent again for this long
 
 
@@ -138,6 +139,7 @@ class AlertNotifier:
         self._muted_until = 0.0  # wall-clock time; alerts are not sent before it
         self.history = history   # HistoryStore, for the stuck-sensor check
         self.stuck: str | None = None  # e.g. "humidity at 95%" while the sensor looks stuck
+        self.presence = None  # PresenceWatcher, set by the app: comfort alerts wait while the room is empty
         self._stuck_checked_at = -1e9
         self._state_path = state_path
         self._load_state()
@@ -193,6 +195,7 @@ class AlertNotifier:
             current = (current & CONNECTIVITY_KEYS) | (self._reported - CONNECTIVITY_KEYS)
         if time.monotonic() - self._started_at < STARTUP_GRACE_SEC:
             current -= CONNECTIVITY_KEYS
+        current = self._hold_while_empty(current, latest, thresholds)
 
         changed = (current - self._reported) | (self._reported - current)
         for key in list(self._pending):
@@ -209,6 +212,22 @@ class AlertNotifier:
                 self._clear(key, latest, thresholds)
         if self.lamp:
             self.lamp.sync(self._reported)
+
+    def _hold_while_empty(self, current: set[str], latest: dict, thresholds) -> set[str]:
+        """While the radar says the room is empty, comfort alerts neither start
+        nor clear: you hear about a hot or humid room when someone is in it.
+        Critical levels (mold risk, heat) and sensor problems still get through."""
+        p = self.presence
+        if p is None or not p.alerts_only_present or not p.empty:
+            return current
+        temp, hum = latest.get("temperature"), latest.get("humidity")
+        critical = set()
+        if hum is not None and hum >= thresholds.HUMIDITY_CRITICAL:
+            critical.add("humidity_high")
+        if temp is not None and temp >= thresholds.TEMP_CRITICAL:
+            critical.add("temp_high")
+        held = (current | self._reported) & COMFORT_KEYS - critical
+        return (current - held) | (self._reported & held)
 
     def _raise(self, key: str, latest: dict, thresholds) -> None:
         self._reported.add(key)

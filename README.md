@@ -15,7 +15,7 @@ Thalpos is a smart room monitor. An ESP8266 measures the temperature and humidit
 ## What it does
 
 - **Measures the room.** Temperature and humidity every few seconds (SHT31, or a DHT11 as fallback), shown on the sensor's own OLED screen and on the dashboard.
-- **Knows when someone is in.** A 24 GHz mmWave radar detects people, even sitting still. Telegram tells you when someone comes in or the room becomes empty, and a hologram appears in the 3D room.
+- **Knows when someone is in.** A 24 GHz mmWave radar detects people, even sitting still. Telegram tells you when someone comes in or the room becomes empty, reminds you to air the room after a long stay, and a hologram appears in the 3D room. Comfort alerts wait until someone is in, and the dashboard shows how long the room was used each day.
 - **Warns you.** Too hot, too cold, too humid, mold risk, sensor offline or stuck: messages on Telegram, and optionally voice announcements on Alexa and a lamp that lights up.
 - **Gives advice.** 10-minute forecasts, a health score, and whether opening the window will actually help, comparing the room with the weather outside.
 - **Keeps history.** 30 days of readings in SQLite, charts, an alert log and CSV export.

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { THRESHOLDS } from "../../config";
 import { useStoredHistory } from "../../hooks/useStoredHistory";
 import { lastSeconds, toSeries } from "../../lib/series";
+import PresenceChart from "../charts/PresenceChart";
 import TimeSeriesChart from "../charts/TimeSeriesChart";
 import AnimatedNumber from "../ui/AnimatedNumber";
 
@@ -78,6 +79,9 @@ export default function Analytics({ telemetry, room }) {
             band={{ low: THRESHOLDS.HUMIDITY_LOW, high: THRESHOLDS.HUMIDITY_HIGH }}
             {...chartProps}
           />
+        </div>
+        <div className="module-card analytics-presence">
+          <PresenceChart />
         </div>
         <div className="module-card analytics-health">
           <h3>Health score</h3>

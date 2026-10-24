@@ -32,6 +32,7 @@ HELP = (
     "/status – current readings and alerts\n"
     "/today – today's range and time out of comfort\n"
     "/night – hour by hour, last 10 h (/night 24 for a day)\n"
+    "/presence – time someone was in the room, today and this week\n"
     "/mute 2h – pause alerts (30m, 2h, 1d; default 1h)\n"
     "/unmute – resume alerts\n"
     "/voice on | off | test – spoken alerts on Alexa\n"
@@ -39,6 +40,13 @@ HELP = (
     "/lamp on | off – switch the alert lamp\n"
     "/lamp auto on | off – lamp lights up on alerts"
 )
+
+
+def minutes_text(minutes: int) -> str:
+    if minutes < 1:
+        return "0 min"
+    hours, mins = divmod(int(minutes), 60)
+    return f"{hours} h {mins} min" if hours and mins else f"{hours} h" if hours else f"{mins} min"
 
 
 def parse_duration(text: str, default_sec: int = 3600) -> int | None:
@@ -56,7 +64,7 @@ def parse_duration(text: str, default_sec: int = 3600) -> int | None:
 
 class TelegramBot:
     def __init__(self, telegram, notifier, sensor, settings, predictor, stats: DailyStats, summary_time: str,
-                 history=None, preferences=None):
+                 history=None, preferences=None, presence=None):
         self.telegram = telegram
         self._preferences = preferences  # saves /voice and /lamp auto changes across restarts
         self._notifier = notifier
@@ -66,6 +74,7 @@ class TelegramBot:
         self._stats = stats
         self._summary_hhmm = summary_time
         self._history = history
+        self._presence = presence
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
 
@@ -183,6 +192,8 @@ class TelegramBot:
             now = time.time()
             self.send_chart(now - hours * 3600, now, f"last {hours} hours")
             return format_night(self._history, self._settings.thresholds, hours=hours)
+        if command == "/presence":
+            return self.presence_text()
         if command == "/mute":
             seconds = parse_duration(arg)
             if seconds is None:
@@ -252,6 +263,26 @@ class TelegramBot:
             return "🔊 Your Echo is reading the room status."
         state = "on" if voice.on else "off"
         return f"Voice alerts are {state} (quiet hours {voice.quiet_hours}). Use /voice on, /voice off, /voice test or /voice status."
+
+    def presence_text(self, now: float | None = None) -> str:
+        if self._history is None:
+            return "History is not available."
+        room = self._sensor.latest.get("room") or "room"
+        days = self._history.daily_presence(7, now)
+        today = days[-1]["minutes"]
+        lines = [f"🚶 {room} today: someone was in for {minutes_text(today)}."]
+        p = self._presence
+        if p is not None and p.occupied:
+            since = p.since
+            lines.append(f"Someone is in now{f' (since {datetime.fromtimestamp(since):%H:%M})' if since else ''}.")
+        elif p is not None and p.empty:
+            lines.append("The room is empty now.")
+        lines.append("")
+        lines.append("Last 7 days:")
+        for d in days:
+            day = datetime.strptime(d["date"], "%Y-%m-%d")
+            lines.append(f"{day:%a %d/%m}  {minutes_text(d['minutes'])}")
+        return "\n".join(lines)
 
     def status_text(self) -> str:
         latest = self._sensor.latest

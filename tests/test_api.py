@@ -52,3 +52,10 @@ def test_notification_settings(monkeypatch, tmp_path):
     finally:
         client.put("/notifications", json={k: before[k] for k in
                                            ("voice_on", "voice_quiet_hours", "lamp_auto", "lamp_quiet_hours")})
+
+
+def test_presence_daily_endpoint():
+    r = client.get("/presence/daily?days=3")
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["days"]) == 3 and "in_now" in body

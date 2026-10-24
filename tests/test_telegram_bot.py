@@ -66,3 +66,13 @@ def test_night_sends_chart_and_text(bot, tmp_path):
     assert text.startswith("🌙 Last 2 hours")
     photos = [m for m in bot.telegram.sent if isinstance(m, tuple)]
     assert len(photos) == 1 or __import__("importlib").util.find_spec("matplotlib") is None
+
+
+def test_presence_command(bot, tmp_path):
+    from backend.history_store import HistoryStore
+    import time as _t
+    bot._history = HistoryStore(str(tmp_path / "h.db"))
+    now = _t.time()
+    bot._history.visit_started(now - 300)
+    text = bot.handle("/presence")
+    assert "today" in text and "Last 7 days" in text and "5 min" in text

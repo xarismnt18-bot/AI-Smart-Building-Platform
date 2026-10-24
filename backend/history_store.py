@@ -1,6 +1,7 @@
 """
 Long-term reading history in SQLite (data/history.db), plus the alert log
-(when each alert started and cleared) shown on the dashboard's Alerts page.
+(when each alert started and cleared) shown on the dashboard's Alerts page,
+and the visits (when someone was in the room, from the radar).
 
 The MQTT client keeps only the last few hundred packets in memory, so a
 background thread stores the live reading every SAMPLE_SEC seconds and keeps
@@ -14,7 +15,7 @@ import os
 import sqlite3
 import threading
 import time
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,9 @@ class HistoryStore:
                 "CREATE TABLE IF NOT EXISTS alert_events (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, "
                 "message TEXT, started REAL NOT NULL, ended REAL, notified INTEGER NOT NULL DEFAULT 0)"
             )
+            self._db.execute(
+                "CREATE TABLE IF NOT EXISTS visits (id INTEGER PRIMARY KEY AUTOINCREMENT, started REAL NOT NULL, ended REAL)"
+            )
         self._stop = threading.Event()
 
     # ---------- writing ----------
@@ -53,6 +57,7 @@ class HistoryStore:
         with self._lock, self._db:
             self._db.execute("DELETE FROM readings WHERE ts < ?", (cutoff,))
             self._db.execute("DELETE FROM alert_events WHERE ended IS NOT NULL AND ended < ?", (cutoff,))
+            self._db.execute("DELETE FROM visits WHERE ended IS NOT NULL AND ended < ?", (cutoff,))
 
     # ---------- alert log ----------
     def alert_started(self, key: str, message: str, ts: float | None = None) -> None:
@@ -91,6 +96,43 @@ class HistoryStore:
             "id": i, "key": k, "message": m, "started": s, "ended": e, "notified": bool(n),
             "duration_sec": round((e or time.time()) - s),
         } for i, k, m, s, e, n in rows]
+
+    # ---------- visits (someone in the room) ----------
+    def visit_started(self, ts: float | None = None) -> None:
+        with self._lock, self._db:
+            if self._db.execute("SELECT 1 FROM visits WHERE ended IS NULL").fetchone():
+                return
+            self._db.execute("INSERT INTO visits (started) VALUES (?)", (ts or time.time(),))
+
+    def visit_ended(self, ts: float | None = None) -> None:
+        with self._lock, self._db:
+            self._db.execute("UPDATE visits SET ended = ? WHERE ended IS NULL", (ts or time.time(),))
+
+    def close_open_visits(self) -> None:
+        """At start-up: a visit left open by a previous run ends at the last stored
+        reading (when the PC or the sensor went off), never before it started."""
+        with self._lock, self._db:
+            (last,) = self._db.execute("SELECT MAX(ts) FROM readings").fetchone()
+            self._db.execute("UPDATE visits SET ended = MAX(started, ?) WHERE ended IS NULL", (last or 0,))
+
+    def daily_presence(self, days: int = 7, now: float | None = None) -> list[dict]:
+        """Minutes someone was in the room on each of the last `days` days, oldest first."""
+        now = now or time.time()
+        today = datetime.fromtimestamp(now).date()
+        first = today - timedelta(days=days - 1)
+        start_ts = datetime.combine(first, datetime.min.time()).timestamp()
+        with self._lock:
+            visits = self._db.execute(
+                "SELECT started, COALESCE(ended, ?) FROM visits WHERE COALESCE(ended, ?) >= ?", (now, now, start_ts),
+            ).fetchall()
+        out = []
+        for i in range(days):
+            day: date = first + timedelta(days=i)
+            lo = datetime.combine(day, datetime.min.time()).timestamp()
+            hi = datetime.combine(day + timedelta(days=1), datetime.min.time()).timestamp()  # DST-safe
+            seconds = sum(max(0.0, min(e, hi) - max(s, lo)) for s, e in visits)
+            out.append({"date": day.isoformat(), "minutes": round(seconds / 60)})
+        return out
 
     def start(self, sensor) -> None:
         def loop():

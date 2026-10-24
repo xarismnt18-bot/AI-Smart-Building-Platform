@@ -19,7 +19,11 @@ Run `setup_telegram.bat` and follow the prompts: create a bot with @BotFather, p
 - 🚶 *Someone came into the Bedroom (20:45).* after the radar has seen someone for 5 seconds;
 - 🚪 *The Bedroom is empty now (21:30). Someone was there for 45 min.* after the room has been empty for 1 minute. The wait avoids a false "left" while someone sits very still.
 
-Turn these on or off, or give them quiet hours, in **Settings → Alerts & quiet hours → Someone enters or leaves**.
+**Time to air the room.** After someone has been in for 2 hours, if the humidity has climbed 3 points in the last hour (or is within 5 points of the limit), you get one reminder per stay: 🪟 *Someone has been in the Bedroom for 2 h 10 min and the humidity went from 52% to 58% in the last hour. Open the window for 5–10 minutes.*
+
+**Comfort alerts only while someone is in.** While the radar says the room is empty, too hot, too cold, too humid or too dry alerts wait: they are sent when someone comes in, if the problem is still there. Critical levels (mold-risk humidity, heat) and sensor problems always come through. The dashboard shows every alert either way.
+
+All three are in **Settings → Alerts & quiet hours → Someone in the room**.
 
 **Morning summary.** Every day at 09:00 (`DAILY_SUMMARY_TIME`) the bot sends yesterday's range with a chart and how long each limit was crossed.
 
@@ -30,6 +34,7 @@ Turn these on or off, or give them quiet hours, in **Settings → Alerts & quiet
 | `/status` | Current readings, health, 10-minute forecast and active alerts |
 | `/today` | Today's min, max, average and time out of comfort |
 | `/night` | Hour by hour for the last 10 hours with a chart (`/night 24` for a day) |
+| `/presence` | Time someone was in the room today and on each of the last 7 days |
 | `/mute 2h` | Pause all messages (`30m`, `2h`, `1d`; default 1 hour) |
 | `/unmute` | Resume messages |
 | `/voice on`, `/voice off`, `/voice test`, `/voice status` | Alexa announcements |

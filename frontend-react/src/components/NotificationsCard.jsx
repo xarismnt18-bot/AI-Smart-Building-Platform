@@ -100,7 +100,7 @@ export default function NotificationsCard({ apiOnline }) {
 
         {server.presence_on !== undefined && (
           <div className="nc-block">
-            <h4>Someone enters or leaves</h4>
+            <h4>Someone in the room</h4>
             {server.telegram_enabled ? (
               <>
                 <label className="nc-check">
@@ -109,9 +109,21 @@ export default function NotificationsCard({ apiOnline }) {
                 </label>
                 <QuietHours id="presence" value={form.presence} disabled={!form.presence_on}
                   onChange={(part, v) => n.editHours("presence", part, v)} />
+                <label className="nc-check">
+                  <input type="checkbox" checked={form.airing_reminder}
+                    onChange={(e) => n.edit("airing_reminder", e.target.checked)} />
+                  Remind me to air the room after 2 hours in, if the humidity climbs
+                </label>
               </>
             ) : (
-              <p className="nc-text">Not set up. Run <code>setup_telegram.bat</code> on the PC.</p>
+              <p className="nc-text">Enter/leave messages need Telegram: run <code>setup_telegram.bat</code> on the PC.</p>
+            )}
+            {server.alerts_only_present !== undefined && (
+              <label className="nc-check">
+                <input type="checkbox" checked={form.alerts_only_present}
+                  onChange={(e) => n.edit("alerts_only_present", e.target.checked)} />
+                Comfort alerts only while someone is in (mold risk and sensor problems always come through)
+              </label>
             )}
           </div>
         )}

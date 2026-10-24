@@ -26,7 +26,7 @@ def valid_quiet_hours(value: str) -> str:
 
 class Preferences:
     FIELDS = {"voice_on": bool, "voice_quiet_hours": str, "lamp_auto": bool, "lamp_quiet_hours": str,
-              "presence_on": bool, "presence_quiet_hours": str}
+              "presence_on": bool, "presence_quiet_hours": str, "alerts_only_present": bool, "airing_reminder": bool}
 
     def __init__(self, path: str, voice, lamp, presence=None):
         self._path = path
@@ -46,6 +46,8 @@ class Preferences:
         if self._presence is not None:
             out["presence_on"] = self._presence.on
             out["presence_quiet_hours"] = self._presence.quiet_hours
+            out["alerts_only_present"] = self._presence.alerts_only_present
+            out["airing_reminder"] = self._presence.airing_on
         return out
 
     def update(self, changes: dict) -> dict:
@@ -80,6 +82,10 @@ class Preferences:
                 self._presence.on = values["presence_on"]
             if "presence_quiet_hours" in values:
                 self._presence.quiet_hours = values["presence_quiet_hours"]
+            if "alerts_only_present" in values:
+                self._presence.alerts_only_present = values["alerts_only_present"]
+            if "airing_reminder" in values:
+                self._presence.airing_on = values["airing_reminder"]
 
     def _load(self) -> dict:
         try:

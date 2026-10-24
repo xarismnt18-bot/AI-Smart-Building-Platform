@@ -16,10 +16,11 @@ The backend listens on `http://127.0.0.1:8000` (the dashboard reaches it at `/ap
 | `/health` | GET | Health score, dew point, mold risk |
 | `/alerts` | GET | Active alerts |
 | `/alerts/history?days=7` | GET | Alert log, newest first |
+| `/presence/daily?days=7` | GET | Minutes someone was in the room per day, and whether someone is in now |
 | `/predictions` | GET | 10-minute forecasts for temperature and humidity |
 | `/recommendations` | GET | Suggested actions |
 | `/config` | GET / PUT / DELETE | Read, update (partial JSON) or reset the thresholds |
-| `/notifications` | GET / PUT | Channels set up, pause state, and the on/off and quiet-hours settings (`voice_on`, `voice_quiet_hours`, `lamp_auto`, `lamp_quiet_hours`, `presence_on`, `presence_quiet_hours`) |
+| `/notifications` | GET / PUT | Channels set up, pause state, and the on/off and quiet-hours settings (`voice_on`, `voice_quiet_hours`, `lamp_auto`, `lamp_quiet_hours`, `presence_on`, `presence_quiet_hours`, `alerts_only_present`, `airing_reminder`) |
 | `/notifications/mute?minutes=60` | POST / DELETE | Pause or resume messages |
 | `/notifications/test` | POST | Send a Telegram test message |
 | `/voice/test`, `/voice/status` | POST / GET | Alexa test sentence / the status sentence |

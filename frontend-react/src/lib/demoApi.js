@@ -149,7 +149,23 @@ function latest() {
 const notify = {
   telegram_enabled: false, voice_enabled: true, lamp_enabled: true, muted_until: null,
   voice_on: true, voice_quiet_hours: "23:00-08:00", lamp_auto: true, lamp_quiet_hours: "23:00-08:00",
+  presence_on: true, presence_quiet_hours: "23:00-08:00", alerts_only_present: true, airing_reminder: true,
 };
+
+// a believable week of time in the room (minutes per day), today grows while the demo runs
+const DEMO_WEEK = [312, 455, 270, 520, 388, 610];
+function demoPresenceDays() {
+  const out = [];
+  const now = new Date();
+  for (let i = 6; i >= 0; i -= 1) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const minutes = i === 0 ? 95 + Math.round((Date.now() - startedAt) / 60000) : DEMO_WEEK[6 - i];
+    out.push({ date: iso, minutes });
+  }
+  const l = latest();
+  return { days: out, in_now: l.presence, since: l.presence_since };
+}
 
 // a believable week of alerts for the Alerts page
 function demoAlertLog() {
@@ -212,6 +228,7 @@ export async function demoRequest(path, options = {}) {
     return { ...notify };
   }
   if (route === "/alerts/history") return demoAlertLog();
+  if (route === "/presence/daily") return demoPresenceDays();
   if (route === "/history/range") {
     const params = new URLSearchParams(path.split("?")[1] || "");
     const hours = Number(params.get("hours")) || 24;

@@ -10,7 +10,7 @@ Open http://localhost:5173 on the PC, or the Tailscale link on the phone (see [R
 |------|---------------|
 | **Dashboard** | Full-screen 3D twin of the home with the live readings, trend, alerts, outside weather and the packet stream. Views: temperature, humidity, X-ray. Click a room to fly to it. The live room turns red and pulses on an alert, and grey when there is no data. While the radar sees someone, a hologram stands in the room with how long they have been there |
 | **Floorplan** | 2D overview of the rooms |
-| **Analytics** | Temperature and humidity charts: live hour, 24 hours, 7 or 30 days. Gaps (sensor off) stay empty |
+| **Analytics** | Temperature and humidity charts: live hour, 24 hours, 7 or 30 days. Gaps (sensor off) stay empty. Below them, **time in the room** for each of the last 7 days, from the radar |
 | **AI Brain** | Rule-based comfort analysis and deviation check |
 | **Predictions** | 10-minute forecasts with confidence |
 | **Energy** | **Simulated** power estimate (no power meter connected) |

@@ -44,3 +44,23 @@ def test_night_summary_flags_hours_over_the_limit(tmp_path, thresholds):
 
 def test_night_summary_without_data(tmp_path, thresholds):
     assert "No readings" in format_night(HistoryStore(str(tmp_path / "e.db")), thresholds)
+
+
+def test_daily_presence_splits_visits_by_day(tmp_path):
+    store = HistoryStore(str(tmp_path / "h.db"))
+    day = datetime(2026, 10, 20, 0, 0).timestamp()
+    store.visit_started(day - 1800)        # 23:30 the day before ...
+    store.visit_ended(day + 3600)          # ... until 01:00
+    store.visit_started(day + 10 * 3600)   # 10:00, still in at "now" 10:45
+    days = store.daily_presence(2, now=day + 10 * 3600 + 2700)
+    assert [d["minutes"] for d in days] == [30, 60 + 45]
+
+
+def test_open_visit_is_closed_at_the_last_reading(tmp_path):
+    store = HistoryStore(str(tmp_path / "h.db"))
+    noon = datetime(2026, 10, 20, 12, 0).timestamp()
+    store.visit_started(noon)
+    store.record(reading(), ts=noon + 600)
+    store.close_open_visits()
+    days = store.daily_presence(1, now=noon + 3600)
+    assert days[-1]["minutes"] == 10

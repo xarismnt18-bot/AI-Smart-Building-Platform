@@ -158,3 +158,50 @@ def test_alert_active_across_restart_appears_in_log(thresholds, tmp_path):
                     history=store, state_path=str(state))
     [event] = store.alert_events(time.time() - 3600)
     assert event["key"] == "humidity_high" and event["ended"] is None and event["notified"]
+
+
+class FakePresence:
+    def __init__(self, empty):
+        self.alerts_only_present = True
+        self.empty = empty
+
+
+def test_comfort_alert_waits_while_room_is_empty(setup):
+    n, sensor, telegram = setup
+    n.presence = FakePresence(empty=True)
+    sensor.latest = reading(hum=80)
+    n.check(); n.check()
+    assert telegram.sent == []
+    n.presence.empty = False          # someone comes in: now it is reported
+    n.check(); n.check()
+    assert len(telegram.sent) == 1 and "humidity is high" in telegram.sent[0]
+
+
+def test_empty_room_does_not_clear_an_alert(setup):
+    n, sensor, telegram = setup
+    sensor.latest = reading(hum=80)
+    n.check(); n.check()
+    n.presence = FakePresence(empty=True)
+    sensor.latest = reading(hum=60)
+    n.check(); n.check()
+    assert len(telegram.sent) == 1     # no "back to normal" while nobody is in
+    n.presence.empty = False
+    n.check(); n.check()
+    assert "back to normal" in telegram.sent[-1]
+
+
+def test_critical_humidity_gets_through_an_empty_room(setup, thresholds):
+    n, sensor, telegram = setup
+    n.presence = FakePresence(empty=True)
+    sensor.latest = reading(hum=thresholds.HUMIDITY_CRITICAL + 1)
+    n.check(); n.check()
+    assert len(telegram.sent) == 1
+
+
+def test_setting_off_alerts_as_before(setup):
+    n, sensor, telegram = setup
+    n.presence = FakePresence(empty=True)
+    n.presence.alerts_only_present = False
+    sensor.latest = reading(hum=80)
+    n.check(); n.check()
+    assert len(telegram.sent) == 1

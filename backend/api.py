@@ -49,11 +49,12 @@ lamp = AlertLamp(IkeaOutlet(IKEA_HUB_IP, IKEA_TOKEN, IKEA_OUTLET_ID), LAMP_QUIET
 history_store = HistoryStore(HISTORY_DB)
 notifier = AlertNotifier(telegram, sensor, settings, NOTIFY_CHECK_SEC, NOTIFY_COOLDOWN_MIN, voice=voice, lamp=lamp,
                          history=history_store, state_path=ALERT_STATE_FILE)
-presence = PresenceWatcher(telegram, sensor, notifier)
+presence = PresenceWatcher(telegram, sensor, notifier, history=history_store, settings=settings)
+notifier.presence = presence
 preferences = Preferences(PREFERENCES_FILE, voice, lamp, presence)
 voice_status = VoiceStatusPublisher(voice, sensor, settings, VOICE_STATUS_VAR, VOICE_STATUS_SEC)
 bot = TelegramBot(telegram, notifier, sensor, settings, predictor, DailyStats(STATS_FILE), DAILY_SUMMARY_TIME,
-                  history=history_store, preferences=preferences)
+                  history=history_store, preferences=preferences, presence=presence)
 
 
 @asynccontextmanager
@@ -79,7 +80,7 @@ async def lifespan(app: FastAPI):
     sensor.stop()
 
 
-app = FastAPI(title="Thalpos API", version="6.18.0", lifespan=lifespan)
+app = FastAPI(title="Thalpos API", version="6.20.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -111,6 +112,12 @@ def root():
 def get_latest():
     since = presence.since
     return {**sensor.latest, "presence_since": round(since) if since else None}
+
+
+@app.get("/presence/daily")
+def get_presence_daily(days: int = Query(7, ge=1, le=30)):
+    """Minutes someone was in the room per day (from the radar), oldest first."""
+    return {"days": history_store.daily_presence(days), "in_now": presence.occupied, "since": presence.since}
 
 
 @app.get("/history")
@@ -223,8 +230,8 @@ def get_notifications():
 
 @app.put("/notifications")
 def put_notifications(changes: dict):
-    """Change voice_on, voice_quiet_hours, lamp_auto, lamp_quiet_hours, presence_on or
-    presence_quiet_hours (saved across restarts)."""
+    """Change voice_on, voice_quiet_hours, lamp_auto, lamp_quiet_hours, presence_on,
+    presence_quiet_hours, alerts_only_present or airing_reminder (saved across restarts)."""
     try:
         preferences.update(changes)
     except ValueError as e:
