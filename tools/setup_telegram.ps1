@@ -1,7 +1,7 @@
 ﻿# Connects Thalpos to a Telegram bot so alerts reach your phone.
 # Writes telegram.env (git-ignored). Safe to run again to change bot or chat.
 $ErrorActionPreference = 'Stop'
-$envFile = Join-Path $PSScriptRoot 'telegram.env'
+$envFile = Join-Path (Split-Path -Parent $PSScriptRoot) 'telegram.env'
 
 Write-Host ''
 Write-Host '=== Thalpos Telegram alerts ===' -ForegroundColor Cyan

@@ -4,7 +4,7 @@
 # - backend + ESP8266 credentials written to git-ignored files
 # Passwords are never printed or logged.
 $ErrorActionPreference = "Stop"
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)  # the project folder
 $Log = Join-Path $Root "setup_security.log"
 function Log($m) { $line = "[{0}] {1}" -f (Get-Date -Format "HH:mm:ss"), $m; $line | Out-File $Log -Append -Encoding utf8; Write-Host $line }
 "==== setup_security $(Get-Date) ====" | Out-File $Log -Encoding utf8

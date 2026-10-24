@@ -1,2 +1,2 @@
 @echo off
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup_remote.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\setup_remote.ps1"

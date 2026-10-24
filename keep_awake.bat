@@ -5,4 +5,4 @@ if %errorlevel% neq 0 (
   powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
   exit /b
 )
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0keep_awake.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\keep_awake.ps1"

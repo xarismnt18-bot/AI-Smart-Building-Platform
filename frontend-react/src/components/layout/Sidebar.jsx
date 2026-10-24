@@ -65,7 +65,7 @@ export function MobileBar({ open, onToggle, status }) {
   );
 }
 
-export default function Sidebar({ active, onNavigate, status, open }) {
+export default function Sidebar({ active, onNavigate, status, open, sensor }) {
   const net = connectionLabel(status);
 
   return (
@@ -90,7 +90,7 @@ export default function Sidebar({ active, onNavigate, status, open }) {
       <div className="system">
         <p>Version <b>v6.20</b></p>
         {DEMO && <p>Mode <b>Demo, simulated</b></p>}
-        <p>Sensor <b>DHT11</b></p>
+        <p>Sensor <b>{sensor || "--"}</b></p>
         <p>Topic <b>{SERVER.mqttTopic}</b></p>
         <p className="system__status">
           <span className={`status-dot ${net.ok ? "" : "status-dot--off"}`} aria-hidden="true" />

@@ -1,7 +1,7 @@
 ﻿# Connects Thalpos to your Echo through Voice Monkey so alerts are spoken aloud.
 # Writes voice.env (git-ignored). Safe to run again.
 $ErrorActionPreference = 'Stop'
-$envFile = Join-Path $PSScriptRoot 'voice.env'
+$envFile = Join-Path (Split-Path -Parent $PSScriptRoot) 'voice.env'
 $api = 'https://api-v3.voicemonkey.io'
 
 Write-Host ''

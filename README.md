@@ -6,11 +6,18 @@ Thalpos is a smart room monitor. An ESP8266 measures the temperature and humidit
 
 **[▶ Live demo](https://xarismnt18-bot.github.io/thalpos/)**: the real dashboard with a simulated sensor, running in your browser. Nothing to install.
 
-![Dashboard: the live 3D twin with a humidity alert](docs/screenshots/demo.gif)
+![Dashboard: the 3D twin of the home, with a hologram in the bedroom while the radar sees someone](docs/screenshots/presence.png)
 
 | Forecasts and recommendations | Telemetry charts | Phone |
 |---|---|---|
 | ![Predictions page](docs/screenshots/predictions.png) | ![Analytics page](docs/screenshots/analytics.png) | ![Dashboard on a phone](docs/screenshots/mobile.png) |
+
+<details>
+<summary>The live dashboard in motion (humidity alert)</summary>
+
+![Dashboard: the live 3D twin with a humidity alert](docs/screenshots/demo.gif)
+
+</details>
 
 ## What it does
 
@@ -106,11 +113,11 @@ The scripts are in the project root and can be double-clicked. Each writes a `.l
 ├── ai/                       MQTT client, forecast, comfort and recommendation engines
 ├── frontend-react/           React + Vite dashboard (3D twin in src/components/immersive)
 ├── tests/                    pytest suite (no broker or accounts needed)
-├── tools/                    Flashing, serial log, Wi-Fi, secret scanner, IKEA setup
+├── tools/                    Helpers the scripts call: flashing, serial log, Wi-Fi, setup, secret scanner
 ├── sensors/, reports/        Simulated data generator and a text report (ML demos)
 ├── docs/                     Documentation and screenshots
 ├── config.py, main.py        Backend configuration and entry point
-└── *.bat, *.ps1              The scripts in the table above
+└── *.bat                     The scripts in the table above (double-click them)
 ```
 
 ## Documentation
