@@ -1,6 +1,6 @@
 @echo off
 rem Starts Thalpos automatically (hidden) every time you sign in to Windows,
-rem and adds a "Thalpos" shortcut to the desktop.
+rem and adds a "Thalpos" icon to the desktop (see create_shortcut.bat).
 rem Undo with uninstall_autostart.bat.
 set "ROOT=%~dp0"
 set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
@@ -16,10 +16,8 @@ del /q "%USERPROFILE%\Desktop\Thalpos.url" 2>nul
   echo sh.Run """%ROOT%start_thalpos_background.bat""", 0, False
 ) > "%VBS%"
 
-(
-  echo [InternetShortcut]
-  echo URL=http://localhost:5173
-) > "%USERPROFILE%\Desktop\Thalpos.url"
+rem desktop icon that starts Thalpos in windows and opens the dashboard
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%tools\create_shortcut.ps1"
 
 echo Autostart installed: "%VBS%"
 echo Starting Thalpos in the background now...

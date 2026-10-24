@@ -89,7 +89,8 @@ The scripts are in the project root and can be double-clicked. Each writes a `.l
 
 | Script | When |
 |--------|------|
-| `Run_Thalpos.bat` | Start broker, backend and dashboard in their own windows |
+| `Run_Thalpos.bat` | Start broker, backend and dashboard in their own windows and open the dashboard |
+| `create_shortcut.bat` | Once: a **Thalpos** icon on the desktop that does the same with a double-click |
 | `install_autostart.bat` / `uninstall_autostart.bat` | Start Thalpos hidden at every Windows sign-in / undo it |
 | `restart_thalpos.bat` | Restart the background instance (after a setup step or an update) |
 | `flash_esp.bat` | Compile and upload the firmware over USB |

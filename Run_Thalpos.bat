@@ -5,7 +5,7 @@ set "ROOT=%~dp0"
 set "MOSQUITTO_DIR=C:\Program Files\mosquitto"
 
 echo ========================================
-echo   Thalpos - Launcher
+echo   Thalpos
 echo ========================================
 
 rem --- stop previous backend (port 8000) and dashboard (port 5173), if running
@@ -36,9 +36,15 @@ set "API_HOST=127.0.0.1"
 set "CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173"
 
 rem The backend retries the broker connection on its own, so no race here.
-start "FastAPI Backend" cmd /k "cd /d "%ROOT%" && call venv\Scripts\activate.bat && python main.py --reload"
+start "Thalpos backend" cmd /k "cd /d "%ROOT%" && call venv\Scripts\activate.bat && python main.py"
 
-start "React Frontend (v6)" cmd /k "cd /d "%ROOT%frontend-react" && npm run dev"
+start "Thalpos dashboard" cmd /k "cd /d "%ROOT%frontend-react" && npm run dev"
 
-timeout /t 5 /nobreak >nul
+rem open the dashboard as soon as it answers (at most ~30 s)
+echo Waiting for the dashboard...
+for /l %%i in (1,1,30) do (
+    curl -s -o nul http://localhost:5173 && goto open
+    timeout /t 1 /nobreak >nul
+)
+:open
 start http://localhost:5173

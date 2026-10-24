@@ -9,7 +9,7 @@ Run `install_autostart.bat` once. Thalpos then starts hidden every time you sign
 - `restart_thalpos.bat` restarts it in the background, for example after a setup script or an update.
 - `uninstall_autostart.bat` turns autostart off.
 
-To run it in visible windows instead, use `Run_Thalpos.bat`. It stops a previous instance first, so it is safe to run again.
+To run it in visible windows instead, use `Run_Thalpos.bat`, or the **Thalpos** icon on the desktop that `create_shortcut.bat` makes: it opens the backend and the dashboard in their own command windows and opens the dashboard in the browser as soon as it is ready. It stops a previous instance first, so it is safe to run again.
 
 Manual start, one terminal each:
 
