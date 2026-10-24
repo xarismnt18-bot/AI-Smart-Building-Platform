@@ -38,6 +38,15 @@ set "CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173"
 rem The backend retries the broker connection on its own, so no race here.
 start "Thalpos backend" cmd /k "cd /d "%ROOT%" && call venv\Scripts\activate.bat && python main.py"
 
+rem start the dashboard only once the backend answers, so its first requests
+rem don't fail with "http proxy error ... ECONNREFUSED" (at most ~30 s)
+echo Waiting for the backend...
+for /l %%i in (1,1,30) do (
+    curl -s -o nul http://127.0.0.1:8000/ && goto backend_up
+    timeout /t 1 /nobreak >nul
+)
+:backend_up
+
 start "Thalpos dashboard" cmd /k "cd /d "%ROOT%frontend-react" && npm run dev"
 
 rem open the dashboard as soon as it answers (at most ~30 s)
