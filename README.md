@@ -6,6 +6,8 @@ Thalpos is a smart room monitor. An ESP8266 measures the temperature and humidit
 
 **[▶ Live demo](https://xarismnt18-bot.github.io/thalpos/)**: the real dashboard with a simulated sensor, running in your browser. Nothing to install.
 
+**[📄 Presentation (PDF)](docs/Thalpos_presentation.pdf)**: the project in 16 slides, from the idea and the problem it solves to the hardware, architecture, code and lessons learned.
+
 ![Dashboard: the 3D twin of the home, with a hologram in the bedroom while the radar sees someone](docs/screenshots/presence.png)
 
 | Forecasts and recommendations | Telemetry charts | Phone |
@@ -131,6 +133,7 @@ The scripts are in the project root and can be double-clicked. Each writes a `.l
 | [Running it at home](docs/running.md) | Autostart, remote access with Tailscale, a laptop as the server |
 | [API and configuration](docs/reference.md) | REST endpoints, `.env` settings, how forecasts work, demo build, ML demos |
 | [Security](docs/security.md) | MQTT login, local-only API, secrets, known limits |
+| [Presentation (PDF)](docs/Thalpos_presentation.pdf) | The project in 16 slides: idea, problem, method, hardware, architecture, code, dashboard, lessons |
 
 ## Tests
 
